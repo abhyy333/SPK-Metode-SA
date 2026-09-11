@@ -1,0 +1,6 @@
+{
+  "name": "ELEKTRO-SCHEDULER",
+  "description": "Sistem Pendukung Keputusan Penjadwalan Perkuliahan Menggunakan Simulated Annealing — Jurusan Teknik Elektro, Universitas Mataram",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
