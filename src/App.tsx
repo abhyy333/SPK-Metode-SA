@@ -5,43 +5,69 @@ import { useToast } from './components/ui/Toast';
 import { StorageService } from './services/storageService';
 import { AccessDenied } from './components/ui/AccessDenied';
 import { PageSkeleton } from './components/ui/PageSkeleton';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
 
-// Pages - Admin & Shared (Lazy Loaded for Instant Routing & Code Splitting)
-const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
-const CoursesPage = lazy(() => import('./pages/CoursesPage').then(m => ({ default: m.CoursesPage })));
-const LecturersPage = lazy(() => import('./pages/LecturersPage').then(m => ({ default: m.LecturersPage })));
-const StudentsPage = lazy(() => import('./pages/StudentsPage').then(m => ({ default: m.StudentsPage })));
-const ClassesPage = lazy(() => import('./pages/ClassesPage').then(m => ({ default: m.ClassesPage })));
-const RoomsPage = lazy(() => import('./pages/RoomsPage').then(m => ({ default: m.RoomsPage })));
-const TimeslotsPage = lazy(() => import('./pages/TimeslotsPage').then(m => ({ default: m.TimeslotsPage })));
-const OptimizationPage = lazy(() => import('./pages/OptimizationPage').then(m => ({ default: m.OptimizationPage })));
-const TimetablePage = lazy(() => import('./pages/TimetablePage').then(m => ({ default: m.TimetablePage })));
-const ConflictAnalysisPage = lazy(() => import('./pages/ConflictAnalysisPage').then(m => ({ default: m.ConflictAnalysisPage })));
-const WeightsConfigPage = lazy(() => import('./pages/WeightsConfigPage').then(m => ({ default: m.WeightsConfigPage })));
-const ReportsPage = lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
-const ResearchModePage = lazy(() => import('./pages/ResearchModePage').then(m => ({ default: m.ResearchModePage })));
-const CurriculumStructurePage = lazy(() => import('./pages/CurriculumStructurePage').then(m => ({ default: m.CurriculumStructurePage })));
-const CurriculumPackagesPage = lazy(() => import('./pages/CurriculumPackagesPage').then(m => ({ default: m.CurriculumPackagesPage })));
-const CurriculumAnalysisPage = lazy(() => import('./pages/CurriculumAnalysisPage').then(m => ({ default: m.CurriculumAnalysisPage })));
-const CourseOfferingsPage = lazy(() => import('./pages/CourseOfferingsPage').then(m => ({ default: m.CourseOfferingsPage })));
+// Resilient Lazy Import Helper with Retry Mechanism
+function lazyWithRetry<T extends React.ComponentType<any> = React.ComponentType<any>>(
+  factory: () => Promise<any>,
+  name?: string
+): React.LazyExoticComponent<T> {
+  return lazy<T>(async () => {
+    try {
+      const module = await factory();
+      if (name && module[name]) {
+        return { default: module[name] };
+      }
+      return { default: module.default || module[Object.keys(module)[0]] };
+    } catch (err) {
+      console.warn(`Module load error for ${name || 'component'}, retrying...`, err);
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      const module = await factory();
+      if (name && module[name]) {
+        return { default: module[name] };
+      }
+      return { default: module.default || module[Object.keys(module)[0]] };
+    }
+  });
+}
+
+// Pages - Admin & Shared (Lazy Loaded for Fast Startup)
+const UnifiedSchedulingPage = lazyWithRetry(() => import('./pages/UnifiedSchedulingPage'), 'UnifiedSchedulingPage');
+const DashboardPage = lazyWithRetry(() => import('./pages/DashboardPage'), 'DashboardPage');
+const CoursesPage = lazyWithRetry(() => import('./pages/CoursesPage'), 'CoursesPage');
+const LecturersPage = lazyWithRetry(() => import('./pages/LecturersPage'), 'LecturersPage');
+const RoomsPage = lazyWithRetry(() => import('./pages/RoomsPage'), 'RoomsPage');
+const TimeslotsPage = lazyWithRetry(() => import('./pages/TimeslotsPage'), 'TimeslotsPage');
+const OptimizationPage = lazyWithRetry(() => import('./pages/OptimizationPage'), 'OptimizationPage');
+const TimetablePage = lazyWithRetry(() => import('./pages/TimetablePage'), 'TimetablePage');
+const ConflictAnalysisPage = lazyWithRetry(() => import('./pages/ConflictAnalysisPage'), 'ConflictAnalysisPage');
+const WeightsConfigPage = lazyWithRetry(() => import('./pages/WeightsConfigPage'), 'WeightsConfigPage');
+const ReportsPage = lazyWithRetry(() => import('./pages/ReportsPage'), 'ReportsPage');
+const CurriculumStructurePage = lazyWithRetry(() => import('./pages/CurriculumStructurePage'), 'CurriculumStructurePage');
+const CurriculumPackagesPage = lazyWithRetry(() => import('./pages/CurriculumPackagesPage'), 'CurriculumPackagesPage');
+const CourseOfferingsPage = lazyWithRetry(() => import('./pages/CourseOfferingsPage'), 'CourseOfferingsPage');
 
 // Pages - Lecturer Portal (Lazy Loaded)
-const LecturerDashboardPage = lazy(() => import('./pages/lecturer/LecturerDashboardPage').then(m => ({ default: m.LecturerDashboardPage })));
-const LecturerSchedulePage = lazy(() => import('./pages/lecturer/LecturerSchedulePage').then(m => ({ default: m.LecturerSchedulePage })));
-const LecturerAvailabilityPage = lazy(() => import('./pages/lecturer/LecturerAvailabilityPage').then(m => ({ default: m.LecturerAvailabilityPage })));
+const LecturerDashboardPage = lazyWithRetry(() => import('./pages/lecturer/LecturerDashboardPage'), 'LecturerDashboardPage');
+const LecturerSchedulePage = lazyWithRetry(() => import('./pages/lecturer/LecturerSchedulePage'), 'LecturerSchedulePage');
+const LecturerAvailabilityPage = lazyWithRetry(() => import('./pages/lecturer/LecturerAvailabilityPage'), 'LecturerAvailabilityPage');
 
 // Pages - Student Portal (Lazy Loaded)
-const StudentDashboardPage = lazy(() => import('./pages/student/StudentDashboardPage').then(m => ({ default: m.StudentDashboardPage })));
-const StudentSchedulePage = lazy(() => import('./pages/student/StudentSchedulePage').then(m => ({ default: m.StudentSchedulePage })));
+const StudentSchedulePage = lazyWithRetry(() => import('./pages/student/StudentSchedulePage').then(m => ({ default: m.StudentSchedulePage })), 'StudentSchedulePage');
+
+// Pages - History & Snapshots (Lazy Loaded)
+const ScheduleHistoryPage = lazyWithRetry(() => import('./pages/ScheduleHistoryPage').then(m => ({ default: m.ScheduleHistoryPage })), 'ScheduleHistoryPage');
 
 // Algorithms
 import { generateInitialSchedule } from './algorithms/initialSchedule';
 import { detectConflicts } from './algorithms/conflictDetection';
 import { SimulatedAnnealingEngine, SAProgressCallbackData } from './algorithms/simulatedAnnealing';
+import { CourseOfferingGeneratorService } from './services/courseOfferingGeneratorService';
+import { cleanLecturerReferences } from './utils/lecturerValidation';
+import { sortAndReindexSessions } from './utils/sessionUtils';
 import {
   Course,
   Lecturer,
-  Student,
   ClassGroup,
   Room,
   Timeslot,
@@ -56,6 +82,8 @@ import {
   RolePermissions,
   ROLE_PERMISSIONS,
   ScheduleStatus,
+  CourseOffering,
+  CurriculumPackage,
 } from './types';
 
 export default function App() {
@@ -72,7 +100,7 @@ export default function App() {
   // Navigation & Layout State
   const [activeView, setActiveView] = useState<string>(() => {
     if (currentUser.role === 'lecturer') return 'lecturer-dashboard';
-    if (currentUser.role === 'student') return 'student-dashboard';
+    if (currentUser.role === 'student') return 'schedule';
     return 'dashboard';
   });
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
@@ -80,68 +108,69 @@ export default function App() {
   // Master Data State
   const [courses, setCourses] = useState<Course[]>([]);
   const [lecturers, setLecturers] = useState<Lecturer[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [timeslots, setTimeslots] = useState<Timeslot[]>([]);
+  const [offerings, setOfferings] = useState<CourseOffering[]>([]);
+  const [curriculumPackages, setCurriculumPackages] = useState<CurriculumPackage[]>([]);
+
   const [currentSchedule, setCurrentSchedule] = useState<ScheduleAssignment[] | null>(null);
   const [initialSchedule, setInitialSchedule] = useState<ScheduleAssignment[] | null>(null);
   const [parameters, setParameters] = useState<SAParameters>(StorageService.getParameters());
   const [weights, setWeights] = useState<ConstraintWeights>(StorageService.getWeights());
-  const [activeOptimizationResult, setActiveOptimizationResult] =
-    useState<OptimizationResult | null>(null);
+  const [activeOptimizationResult, setActiveOptimizationResult] = useState<OptimizationResult | null>(null);
   const [optimizationHistory, setOptimizationHistory] = useState<OptimizationResult[]>([]);
   const [changeLogs, setChangeLogs] = useState<ScheduleChangeRecord[]>([]);
 
-  // Live Optimization States
   const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
   const [liveProgressData, setLiveProgressData] = useState<SAProgressCallbackData | null>(null);
-  const saEngineRef = useRef<SimulatedAnnealingEngine | null>(null);
+  const engineRef = useRef<SimulatedAnnealingEngine | null>(null);
 
-  // Load Initial Data from Storage
+  // Initial Data Load
   useEffect(() => {
-    StorageService.init();
-    const c = StorageService.getCourses();
-    const l = StorageService.getLecturers();
-    const std = StorageService.getStudents();
-    const cl = StorageService.getClasses();
-    const r = StorageService.getRooms();
-    const t = StorageService.getTimeslots();
-    const s = StorageService.getCurrentSchedule();
-    const initS = StorageService.getInitialSchedule();
-    const optRes = StorageService.getActiveOptimizationResult();
-    const logs = StorageService.getScheduleChangeLogs();
+    const loadedCourses = StorageService.getCourses();
+    const loadedLecturers = StorageService.getLecturers();
+    const loadedClasses = StorageService.getClasses();
+    const loadedRooms = StorageService.getRooms();
+    const loadedTimeslots = StorageService.getTimeslots();
+    let loadedOfferings = StorageService.getCourseOfferings();
+    const loadedPackages = StorageService.getCurriculumPackages();
 
-    setCourses(c);
-    setLecturers(l);
-    setStudents(std);
-    setClasses(cl);
-    setRooms(r);
-    setTimeslots(t);
-    setCurrentSchedule(s);
-    setInitialSchedule(initS);
-    setActiveOptimizationResult(optRes);
-    setChangeLogs(logs);
+    // If offerings empty, auto generate from packages
+    if (!loadedOfferings || loadedOfferings.length === 0) {
+      const genReport = CourseOfferingGeneratorService.generateOfferings({ academicTerm: 'ganjil' });
+      loadedOfferings = genReport.generatedOfferings;
+      StorageService.saveCourseOfferings(loadedOfferings);
+    }
 
-    // If no schedule exists yet, auto-generate one
-    if (!s || s.length === 0) {
-      if (c.length > 0 && r.length > 0 && t.length > 0) {
-        const off = StorageService.getCourseOfferings();
-        const generated = generateInitialSchedule(c, r, t, 'realistic', off);
-        setCurrentSchedule(generated);
-        setInitialSchedule(generated);
-        StorageService.saveCurrentSchedule(generated);
-        StorageService.saveInitialSchedule(generated);
+    setCourses(loadedCourses);
+    setLecturers(loadedLecturers);
+    setClasses(loadedClasses);
+    setRooms(loadedRooms);
+    setTimeslots(loadedTimeslots);
+    setOfferings(loadedOfferings);
+    setCurriculumPackages(loadedPackages);
+
+    const savedCurrent = StorageService.getCurrentSchedule();
+    const savedInitial = StorageService.getInitialSchedule();
+    const savedHistory = StorageService.getOptimizationHistory();
+    const savedLogs = StorageService.getScheduleChangeRecords();
+
+    if (savedCurrent) setCurrentSchedule(savedCurrent);
+    if (savedInitial) setInitialSchedule(savedInitial);
+    if (savedHistory) {
+      setOptimizationHistory(savedHistory);
+      if (savedHistory.length > 0) {
+        setActiveOptimizationResult(savedHistory[savedHistory.length - 1]);
       }
     }
+    if (savedLogs) setChangeLogs(savedLogs);
   }, []);
 
-  // Compute Conflicts on the fly
+  // Compute live conflicts for active schedule
   const activeConflicts: ConflictItem[] = React.useMemo(() => {
     if (!currentSchedule || currentSchedule.length === 0) return [];
-    const enrollments = StorageService.getStudentEnrollments();
-    const curriculumPackages = StorageService.getCurriculumPackages();
-    const result = detectConflicts(
+    return detectConflicts(
       currentSchedule,
       courses,
       lecturers,
@@ -149,184 +178,111 @@ export default function App() {
       rooms,
       timeslots,
       weights,
-      students,
-      enrollments,
-      curriculumPackages
-    );
-    return result.items;
-  }, [currentSchedule, courses, lecturers, classes, rooms, timeslots, weights, students]);
+      [],
+      [],
+      curriculumPackages,
+      offerings
+    ).items;
+  }, [currentSchedule, courses, lecturers, classes, rooms, timeslots, weights, curriculumPackages, offerings]);
 
   // Role Switcher Handler
-  const handleSwitchRole = (newRole: UserRole, targetId?: string) => {
-    let newUser: CurrentUser;
+  const handleSwitchRole = (role: UserRole, targetId?: string) => {
+    const updatedUser = StorageService.switchRole(role, targetId);
+    setCurrentUser(updatedUser);
 
-    if (newRole === 'lecturer') {
-      const targetLecturer = targetId
-        ? lecturers.find(l => l.id === targetId)
-        : lecturers[0];
-      const lecturerObj = targetLecturer || lecturers[0] || {
-        id: 'lec-1',
-        name: 'Dr. Ir. I Made Arya, M.T.',
-        nip: '197508122000031001',
-      };
-
-      newUser = {
-        id: lecturerObj.id,
-        name: lecturerObj.name || 'Dosen',
-        role: 'lecturer',
-        nip: lecturerObj.nip,
-        email: `${(lecturerObj.name || 'dosen').toLowerCase().replace(/[^a-z]/g, '')}@unram.ac.id`,
-        lecturerId: lecturerObj.id,
-      };
+    if (role === 'lecturer') {
       setActiveView('lecturer-dashboard');
-      showToast('info', 'Beralih ke Portal Dosen', `Simulasi login sebagai ${newUser.name}`);
-    } else if (newRole === 'student') {
-      const targetClass = targetId
-        ? classes.find(c => c.id === targetId)
-        : classes[0];
-      const classObj = targetClass || classes[0] || {
-        id: 'cls-elk-a-sm3',
-        code: 'ELK-A (Sm.3)',
-        name: 'Teknik Elektro Kelas A - Semester 3',
-        semester: 3,
-      };
-
-      newUser = {
-        id: `std-${classObj.id}`,
-        name: `Mahasiswa ${classObj.code}`,
-        role: 'student',
-        classId: classObj.id,
-        className: classObj.code,
-        semester: classObj.semester,
-        nim: `F1D0220${Math.floor(10 + Math.random() * 80)}`,
-      };
-      setActiveView('student-dashboard');
-      showToast('info', 'Beralih ke Portal Mahasiswa', `Simulasi login sebagai ${newUser.name} (${classObj.code})`);
+      showToast('info', 'Beralih ke Portal Dosen', `Mode Dosen: ${updatedUser.name}`);
+    } else if (role === 'student') {
+      setActiveView('schedule');
+      showToast('info', 'Beralih ke Portal Mahasiswa', `Mode Mahasiswa: ${updatedUser.name}`);
     } else {
-      newUser = {
-        id: 'admin-001',
-        name: 'Administrator',
-        role: 'admin',
-        email: 'admin.elektro@unram.ac.id',
-      };
       setActiveView('dashboard');
-      showToast('info', 'Beralih ke Akun Administrator', 'Memiliki hak akses penuh untuk konfigurasi dan optimasi.');
+      showToast('info', 'Beralih ke Administrator', 'Mode Administrator Penjadwalan aktif.');
     }
-
-    setCurrentUser(newUser);
-    StorageService.saveCurrentUser(newUser);
   };
 
-  // Schedule Publication Workflow
   const handlePublishSchedule = () => {
-    if (currentUser.role !== 'admin') {
-      showToast('error', 'Akses Ditolak', 'Hanya administrator yang dapat mempublikasikan jadwal resmi.');
-      return;
-    }
-
-    const nextStatus: ScheduleStatus = scheduleStatus === 'published' ? 'draft' : 'published';
-    setScheduleStatus(nextStatus);
-    StorageService.saveScheduleStatus(nextStatus);
-
-    if (nextStatus === 'published') {
-      showToast(
-        'success',
-        'Jadwal Kuliah Resmi Dipublikasikan!',
-        'Jadwal perkuliahan kini berstatus RESMI dan dapat diakses penuh oleh seluruh Dosen & Mahasiswa.'
-      );
+    if (scheduleStatus === 'published') {
+      StorageService.setScheduleStatus('draft');
+      setScheduleStatus('draft');
+      showToast('info', 'Status Jadwal Diubah ke Draft', 'Jadwal kini dalam tahap revisi internal.');
     } else {
+      StorageService.setScheduleStatus('published');
+      setScheduleStatus('published');
+      showToast('success', 'Jadwal Resmi Dipublikasikan', 'Jadwal perkuliahan telah diterbitkan untuk dosen dan jurusan.');
+    }
+  };
+
+  // Generate Initial Schedule
+  const handleGenerateInitial = () => {
+    try {
+      const activeOfferings = StorageService.getCourseOfferings();
+      const newInitial = generateInitialSchedule(
+        courses,
+        rooms,
+        timeslots,
+        'realistic',
+        activeOfferings
+      );
+
+      setCurrentSchedule(newInitial);
+      setInitialSchedule(newInitial);
+      setActiveOptimizationResult(null);
+
+      StorageService.saveCurrentSchedule(newInitial);
+      StorageService.saveInitialSchedule(newInitial);
+
+      const conflictRes = detectConflicts(
+        newInitial,
+        courses,
+        lecturers,
+        classes,
+        rooms,
+        timeslots,
+        weights,
+        [],
+        [],
+        curriculumPackages,
+        activeOfferings
+      );
+
       showToast(
         'info',
-        'Status Jadwal Dikembalikan ke Draft',
-        'Jadwal telah diubah ke mode draft perbaikan.'
+        'Jadwal Awal Berhasil Dibuat',
+        `Alokasi awal dibuat (${newInitial.length} kelas). Terdeteksi ${conflictRes.totalConflictsCount} konflik yang siap dioptimasi.`
       );
+    } catch (err: any) {
+      showToast('error', 'Gagal Membuat Jadwal Awal', err.message || 'Terjadi kesalahan sistem.');
     }
   };
 
-  // Handler: Generate Initial Schedule
-  const handleGenerateInitial = () => {
-    if (!permissions.canManageSchedule) {
-      showToast('error', 'Akses Ditolak', 'Hanya administrator yang dapat membangkitkan jadwal.');
-      return;
-    }
-
-    if (courses.length === 0 || rooms.length === 0 || timeslots.length === 0) {
-      showToast('warning', 'Data Belum Lengkap', 'Pastikan data mata kuliah, ruangan, dan slot waktu tersedia.');
-      return;
-    }
-
-    const offerings = StorageService.getCourseOfferings();
-    const newInitial = generateInitialSchedule(courses, rooms, timeslots, 'realistic', offerings);
-    setCurrentSchedule(newInitial);
-    setInitialSchedule(newInitial);
-    setActiveOptimizationResult(null);
-    setScheduleStatus('draft');
-    StorageService.saveScheduleStatus('draft');
-    StorageService.saveCurrentSchedule(newInitial);
-    StorageService.saveInitialSchedule(newInitial);
-
-    const initialResult = detectConflicts(
-      newInitial,
-      courses,
-      lecturers,
-      classes,
-      rooms,
-      timeslots,
-      weights
-    );
-
-    showToast(
-      'info',
-      'Draft Jadwal Awal Dibuat',
-      `Jadwal awal dibangkitkan dari ${offerings.length || courses.length} rombel mata kuliah dengan ${initialResult.totalConflictsCount} konflik.`
-    );
-  };
-
-  // Handler: Run Simulated Annealing Engine
-  const handleRunOptimization = () => {
+  // Run Simulated Annealing Optimization
+  const handleRunOptimization = useCallback(async () => {
     if (!permissions.canOptimize) {
-      showToast('error', 'Akses Ditolak', 'Hanya administrator yang dapat menjalankan optimasi Simulated Annealing.');
+      showToast('error', 'Akses Ditolak', 'Hanya administrator yang memiliki hak akses menjalankan optimasi.');
       return;
     }
 
-    const offerings = StorageService.getCourseOfferings();
-    const prereq = StorageService.validatePrerequisites(
-      courses,
-      lecturers,
-      classes,
-      rooms,
-      timeslots,
-      offerings
-    );
-
-    if (!prereq.isValid) {
-      showToast('error', 'Validasi Gagal', prereq.errors.join(' '));
-      return;
-    }
-
-    if (prereq.warnings && prereq.warnings.length > 0) {
-      showToast('warning', 'Peringatan Data', prereq.warnings[0]);
-    }
-
-    let startingSchedule = currentSchedule;
-    if (!startingSchedule || startingSchedule.length === 0) {
-      startingSchedule = generateInitialSchedule(courses, rooms, timeslots, 'realistic', offerings);
-      setInitialSchedule(startingSchedule);
-      setCurrentSchedule(startingSchedule);
+    let initial = currentSchedule;
+    if (!initial || initial.length === 0) {
+      const activeOfferings = StorageService.getCourseOfferings();
+      initial = generateInitialSchedule(courses, rooms, timeslots, 'realistic', activeOfferings);
+      setInitialSchedule(initial);
+      StorageService.saveInitialSchedule(initial);
     }
 
     setIsOptimizing(true);
     setLiveProgressData(null);
 
+    const activeOfferings = StorageService.getCourseOfferings();
+
     const engine = new SimulatedAnnealingEngine();
-    saEngineRef.current = engine;
+    engineRef.current = engine;
 
-    const enrollments = StorageService.getStudentEnrollments();
-    const curriculumPackages = StorageService.getCurriculumPackages();
-
-    engine
-      .runOptimization(
-        startingSchedule,
+    try {
+      const result = await engine.runOptimization(
+        initial,
         courses,
         lecturers,
         classes,
@@ -334,219 +290,187 @@ export default function App() {
         timeslots,
         parameters,
         weights,
-        progress => {
+        (progress) => {
           setLiveProgressData({ ...progress });
         },
-        students,
-        enrollments,
-        curriculumPackages
-      )
-      .then(result => {
-        setIsOptimizing(false);
-        setActiveOptimizationResult(result);
-        setCurrentSchedule(result.bestSchedule);
-        setOptimizationHistory(prev => [result, ...prev]);
-        setScheduleStatus('optimized');
-        StorageService.saveScheduleStatus('optimized');
+        [],
+        [],
+        curriculumPackages,
+        activeOfferings
+      );
 
-        StorageService.saveActiveOptimizationResult(result);
-        StorageService.saveCurrentSchedule(result.bestSchedule);
+      setCurrentSchedule(result.bestSchedule);
+      setActiveOptimizationResult(result);
+      StorageService.saveCurrentSchedule(result.bestSchedule);
 
-        // Record change log
-        const logEntry: ScheduleChangeRecord = {
-          id: `log-sa-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          courseId: 'all',
-          courseCode: 'GLOBAL',
-          courseName: 'Optimasi Keseluruhan Sistem',
-          lecturerName: 'Simulated Annealing Engine',
-          className: 'Semua Rombel',
-          before: {
-            day: 'Senin',
-            timeslotLabel: `${result.initialConflicts.total} Konflik`,
-            roomCode: `Cost: ${result.initialCost}`,
-          },
-          after: {
-            day: 'Senin',
-            timeslotLabel: `${result.bestConflicts.total} Konflik`,
-            roomCode: `Cost: ${result.bestCost}`,
-          },
-          method: 'Simulated Annealing',
-          reason: `Konvergensi pada iterasi ke-${result.bestIteration} (${result.executionTimeMs} ms)`,
-          conflictChange: {
-            beforeTotal: result.initialConflicts.total,
-            afterTotal: result.bestConflicts.total,
-          },
-        };
-        StorageService.addScheduleChangeLog(logEntry);
-        setChangeLogs(StorageService.getScheduleChangeLogs());
+      StorageService.addOptimizationResult(result);
+      setOptimizationHistory(StorageService.getOptimizationHistory());
 
+      const hardCount = result.bestConflicts.hard;
+      const softCount = result.bestConflicts.soft;
+
+      if (hardCount === 0) {
         showToast(
           'success',
-          'Optimasi SA Selesai!',
-          `Berhasil menurunkan konflik dari ${result.initialConflicts.total} menjadi ${result.bestConflicts.total} (Iterasi ke-${result.bestIteration}).`
+          'Optimasi Selesai Sempurna! (0 Hard Conflict)',
+          `Selesai dalam ${result.executionTimeMs} ms (${result.totalIterationsCompleted.toLocaleString()} iterasi). Seluruh kendala hard terpenuhi.`
         );
-      })
-      .catch(err => {
-        setIsOptimizing(false);
-        showToast('error', 'Optimasi Gagal', err?.message || 'Terjadi kesalahan saat menjalankan algoritma.');
-      });
-  };
+      } else {
+        showToast(
+          'warning',
+          'Optimasi Selesai dengan Catatan',
+          `Tersisa ${hardCount} hard conflict dan ${softCount} soft penalty. Periksa rekomendasi slot alternatif.`
+        );
+      }
+    } catch (err: any) {
+      showToast('error', 'Optimasi Terhenti', err.message || 'Terjadi kesalahan komputasi.');
+    } finally {
+      setIsOptimizing(false);
+      engineRef.current = null;
+    }
+  }, [currentSchedule, courses, lecturers, classes, rooms, timeslots, weights, parameters, curriculumPackages, permissions]);
 
   const handleStopOptimization = () => {
-    if (saEngineRef.current) {
-      saEngineRef.current.stop();
-      setIsOptimizing(false);
-      showToast('warning', 'Optimasi Dihentikan', 'Proses Simulated Annealing dihentikan oleh pengguna.');
+    if (engineRef.current) {
+      engineRef.current.abort();
+      showToast('info', 'Optimasi Dihentikan', 'Algoritma Simulated Annealing dihentikan oleh pengguna.');
     }
   };
 
-  // Reset Demo
+  // Reset Demo / Simulation Data
   const handleResetDemo = () => {
-    if (window.confirm('Reset seluruh data ke kondisi awal penelitian Teknik Elektro UNRAM?')) {
-      StorageService.resetDemoData();
-      setCourses(StorageService.getCourses());
-      setLecturers(StorageService.getLecturers());
-      setStudents(StorageService.getStudents());
-      setClasses(StorageService.getClasses());
-      setRooms(StorageService.getRooms());
-      setTimeslots(StorageService.getTimeslots());
-      setParameters(StorageService.getParameters());
-      setWeights(StorageService.getWeights());
-      setActiveOptimizationResult(null);
-      setChangeLogs([]);
-      setScheduleStatus('draft');
-
-      const newGen = generateInitialSchedule(
-        StorageService.getCourses(),
-        StorageService.getRooms(),
-        StorageService.getTimeslots()
-      );
-      setCurrentSchedule(newGen);
-      setInitialSchedule(newGen);
-      StorageService.saveCurrentSchedule(newGen);
-      StorageService.saveInitialSchedule(newGen);
-
-      showToast('info', 'Dataset Direset', 'Seluruh data penelitian telah dikembalikan ke kondisi default.');
+    if (engineRef.current && isOptimizing) {
+      engineRef.current.abort();
+      setIsOptimizing(false);
     }
+
+    const resetResult = StorageService.resetSimulationData();
+
+    // Immediate state updates without page refresh
+    setCourses(resetResult.courses);
+    setLecturers(resetResult.lecturers);
+    setRooms(resetResult.rooms);
+    setTimeslots(resetResult.timeslots);
+    setCurriculumPackages(resetResult.packages);
+    setOfferings([]);
+    setCurrentSchedule(null);
+    setInitialSchedule(null);
+    setActiveOptimizationResult(null);
+    setOptimizationHistory([]);
+    setChangeLogs([]);
+    setLiveProgressData(null);
+    setScheduleStatus('draft');
+
+    showToast('success', 'Data Simulasi Berhasil Direset', 'Data hasil generate dan optimasi telah dikembalikan ke kondisi awal.');
   };
 
-  // CRUD Handlers for Courses
+  // CRUD Handlers
   const handleSaveCourse = (c: Course) => {
-    const updated = courses.some(item => item.id === c.id)
-      ? courses.map(item => (item.id === c.id ? c : item))
+    const updated = courses.some((item) => item.id === c.id)
+      ? courses.map((item) => (item.id === c.id ? c : item))
       : [...courses, c];
     setCourses(updated);
     StorageService.saveCourses(updated);
   };
 
   const handleDeleteCourse = (id: string) => {
-    const updated = courses.filter(c => c.id !== id);
+    const updated = courses.filter((c) => c.id !== id);
     setCourses(updated);
     StorageService.saveCourses(updated);
     if (currentSchedule) {
-      const updatedSched = currentSchedule.filter(a => a.courseId !== id);
+      const updatedSched = currentSchedule.filter((a) => a.courseId !== id);
       setCurrentSchedule(updatedSched);
       StorageService.saveCurrentSchedule(updatedSched);
     }
   };
 
-  // CRUD Handlers for Lecturers
   const handleSaveLecturer = (l: Lecturer) => {
-    const updated = lecturers.some(item => item.id === l.id)
-      ? lecturers.map(item => (item.id === l.id ? l : item))
+    const updated = lecturers.some((item) => item.id === l.id)
+      ? lecturers.map((item) => (item.id === l.id ? l : item))
       : [...lecturers, l];
     setLecturers(updated);
     StorageService.saveLecturers(updated);
   };
 
   const handleDeleteLecturer = (id: string) => {
-    const updated = lecturers.filter(l => l.id !== id);
+    const updated = lecturers.filter((l) => l.id !== id);
     setLecturers(updated);
     StorageService.saveLecturers(updated);
-  };
 
-  // CRUD Handlers for Students
-  const handleSaveStudent = (st: Student) => {
-    const updated = students.some(item => item.id === st.id)
-      ? students.map(item => (item.id === st.id ? st : item))
-      : [...students, st];
-    setStudents(updated);
-    StorageService.saveStudents(updated);
-    showToast('success', 'Data Mahasiswa Tersimpan', `${st.name} (${st.nim}) berhasil disimpan.`);
-  };
+    const activeOfferings = StorageService.getCourseOfferings();
+    const activeSchedule = StorageService.getCurrentSchedule() || [];
+    const cleaned = cleanLecturerReferences(id, activeOfferings, activeSchedule);
 
-  const handleDeleteStudent = (id: string) => {
-    const target = students.find(s => s.id === id);
-    const updated = students.filter(st => st.id !== id);
-    setStudents(updated);
-    StorageService.saveStudents(updated);
-    if (target) {
-      showToast('info', 'Mahasiswa Dihapus', `${target.name} (${target.nim}) telah dihapus.`);
+    if (cleaned.affectedOfferingCount > 0) {
+      setOfferings(cleaned.updatedOfferings);
+      StorageService.saveCourseOfferings(cleaned.updatedOfferings);
+      if (activeSchedule.length > 0) {
+        setCurrentSchedule(cleaned.updatedAssignments);
+        StorageService.saveCurrentSchedule(cleaned.updatedAssignments);
+      }
     }
   };
 
-  // Lecturer Availability Update
   const handleSaveLecturerAvailability = (updatedLecturer: Lecturer) => {
     handleSaveLecturer(updatedLecturer);
     showToast(
       'success',
       'Preferensi Ketersediaan Tersimpan',
-      'Preferensi waktu dan ketersediaan hari Anda telah diperbarui untuk optimasi jadwal berikutnya.'
+      'Preferensi waktu dan ketersediaan hari dosen telah diperbarui.'
     );
   };
 
-  // CRUD Handlers for Classes
   const handleSaveClass = (cl: ClassGroup) => {
-    const updated = classes.some(item => item.id === cl.id)
-      ? classes.map(item => (item.id === cl.id ? cl : item))
+    const updated = classes.some((item) => item.id === cl.id)
+      ? classes.map((item) => (item.id === cl.id ? cl : item))
       : [...classes, cl];
     setClasses(updated);
     StorageService.saveClasses(updated);
   };
 
   const handleDeleteClass = (id: string) => {
-    const updated = classes.filter(cl => cl.id !== id);
+    const updated = classes.filter((cl) => cl.id !== id);
     setClasses(updated);
     StorageService.saveClasses(updated);
   };
 
-  // CRUD Handlers for Rooms
   const handleSaveRoom = (r: Room) => {
-    const updated = rooms.some(item => item.id === r.id)
-      ? rooms.map(item => (item.id === r.id ? r : item))
+    const updated = rooms.some((item) => item.id === r.id)
+      ? rooms.map((item) => (item.id === r.id ? r : item))
       : [...rooms, r];
     setRooms(updated);
     StorageService.saveRooms(updated);
   };
 
   const handleDeleteRoom = (id: string) => {
-    const updated = rooms.filter(r => r.id !== id);
+    const updated = rooms.filter((r) => r.id !== id);
     setRooms(updated);
     StorageService.saveRooms(updated);
   };
 
-  // CRUD Handlers for Timeslots
   const handleSaveTimeslot = (ts: Timeslot) => {
-    const updated = timeslots.some(item => item.id === ts.id)
-      ? timeslots.map(item => (item.id === ts.id ? ts : item))
+    const updated = timeslots.some((item) => item.id === ts.id)
+      ? timeslots.map((item) => (item.id === ts.id ? ts : item))
       : [...timeslots, ts];
-    setTimeslots(updated);
-    StorageService.saveTimeslots(updated);
+    const reindexed = sortAndReindexSessions(updated);
+    setTimeslots(reindexed);
+    StorageService.saveTimeslots(reindexed);
   };
 
   const handleDeleteTimeslot = (id: string) => {
-    const updated = timeslots.filter(ts => ts.id !== id);
-    setTimeslots(updated);
-    StorageService.saveTimeslots(updated);
+    const updated = timeslots.filter((ts) => ts.id !== id);
+    const reindexed = sortAndReindexSessions(updated);
+    setTimeslots(reindexed);
+    StorageService.saveTimeslots(reindexed);
   };
 
   const handleToggleTimeslot = (id: string) => {
-    const updated = timeslots.map(ts =>
+    const updated = timeslots.map((ts) =>
       ts.id === id ? { ...ts, isActive: !ts.isActive } : ts
     );
-    setTimeslots(updated);
-    StorageService.saveTimeslots(updated);
+    const reindexed = sortAndReindexSessions(updated);
+    setTimeslots(reindexed);
+    StorageService.saveTimeslots(reindexed);
   };
 
   const handleResetDefaultTimeslots = () => {
@@ -554,13 +478,12 @@ export default function App() {
     setTimeslots(defaultSlots);
   };
 
-  // Handler for Manual Move Schedule with Audit Logging
   const handleManualMoveAssignment = (
     assignmentId: string,
     newTimeslotId: string,
     newRoomId: string,
     method: ScheduleChangeRecord['method'] = 'Manual Move',
-    reason: string = 'Penyesuaian alokasi jadwal oleh pengguna'
+    reason: string = 'Penyesuaian alokasi jadwal oleh panitia'
   ) => {
     if (!permissions.canManageSchedule) {
       showToast('error', 'Akses Ditolak', 'Hanya administrator yang dapat memodifikasi penempatan jadwal.');
@@ -568,21 +491,19 @@ export default function App() {
     }
 
     if (!currentSchedule) return;
-
-    const oldAssign = currentSchedule.find(a => a.id === assignmentId);
+    const oldAssign = currentSchedule.find((a) => a.id === assignmentId);
     if (!oldAssign) return;
 
-    const course = courses.find(c => c.id === oldAssign.courseId);
-    const lecturer = lecturers.find(l => l.id === oldAssign.lecturerId);
-    const cls = classes.find(cl => cl.id === oldAssign.classId);
-    const oldSlot = timeslots.find(t => t.id === oldAssign.timeslotId);
-    const oldRoom = rooms.find(r => r.id === oldAssign.roomId);
-    const newSlot = timeslots.find(t => t.id === newTimeslotId);
-    const newRoom = rooms.find(r => r.id === newRoomId);
+    const course = courses.find((c) => c.id === oldAssign.courseId);
+    const lecturer = lecturers.find((l) => l.id === oldAssign.lecturerId);
+    const oldSlot = timeslots.find((t) => t.id === oldAssign.timeslotId);
+    const oldRoom = rooms.find((r) => r.id === oldAssign.roomId);
+    const newSlot = timeslots.find((t) => t.id === newTimeslotId);
+    const newRoom = rooms.find((r) => r.id === newRoomId);
 
     const prevConflicts = activeConflicts.length;
 
-    const updated = currentSchedule.map(a =>
+    const updated = currentSchedule.map((a) =>
       a.id === assignmentId ? { ...a, timeslotId: newTimeslotId, roomId: newRoomId } : a
     );
     setCurrentSchedule(updated);
@@ -595,7 +516,11 @@ export default function App() {
       classes,
       rooms,
       timeslots,
-      weights
+      weights,
+      [],
+      [],
+      curriculumPackages,
+      offerings
     ).totalConflictsCount;
 
     if (course && oldSlot && oldRoom && newSlot && newRoom) {
@@ -606,7 +531,7 @@ export default function App() {
         courseCode: course.code,
         courseName: course.name,
         lecturerName: lecturer?.name || '-',
-        className: cls?.code || '-',
+        className: 'S1 Elektro',
         before: {
           day: oldSlot.day,
           timeslotLabel: oldSlot.label,
@@ -625,16 +550,15 @@ export default function App() {
         },
       };
 
-      StorageService.addScheduleChangeLog(record);
-      setChangeLogs(StorageService.getScheduleChangeLogs());
+      StorageService.addScheduleChangeLog(record, currentUser);
+      setChangeLogs(StorageService.getScheduleChangeRecords());
     }
   };
 
-  // Handler for Swap Assignments with Audit Logging
   const handleSwapAssignments = (
     assignment1Id: string,
     assignment2Id: string,
-    reason: string = 'Pertukaran slot jadwal oleh pengguna'
+    reason: string = 'Pertukaran slot jadwal oleh panitia'
   ) => {
     if (!permissions.canManageSchedule) {
       showToast('error', 'Akses Ditolak', 'Hanya administrator yang dapat menukar slot jadwal.');
@@ -643,15 +567,15 @@ export default function App() {
 
     if (!currentSchedule) return;
 
-    const a1 = currentSchedule.find(a => a.id === assignment1Id);
-    const a2 = currentSchedule.find(a => a.id === assignment2Id);
+    const a1 = currentSchedule.find((a) => a.id === assignment1Id);
+    const a2 = currentSchedule.find((a) => a.id === assignment2Id);
     if (!a1 || !a2) return;
 
-    const course1 = courses.find(c => c.id === a1.courseId);
-    const course2 = courses.find(c => c.id === a2.courseId);
+    const course1 = courses.find((c) => c.id === a1.courseId);
+    const course2 = courses.find((c) => c.id === a2.courseId);
     const prevConflicts = activeConflicts.length;
 
-    const updated = currentSchedule.map(a => {
+    const updated = currentSchedule.map((a) => {
       if (a.id === assignment1Id) {
         return { ...a, timeslotId: a2.timeslotId, roomId: a2.roomId };
       }
@@ -671,7 +595,11 @@ export default function App() {
       classes,
       rooms,
       timeslots,
-      weights
+      weights,
+      [],
+      [],
+      curriculumPackages,
+      offerings
     ).totalConflictsCount;
 
     const record: ScheduleChangeRecord = {
@@ -681,16 +609,16 @@ export default function App() {
       courseCode: `${course1?.code || ''} ↔ ${course2?.code || ''}`,
       courseName: `Swap: ${course1?.name || ''} dengan ${course2?.name || ''}`,
       lecturerName: 'Pertukaran Jadwal',
-      className: 'Multi Kelas',
+      className: 'S1 Elektro',
       before: {
-        day: timeslots.find(t => t.id === a1.timeslotId)?.day || 'Senin',
-        timeslotLabel: timeslots.find(t => t.id === a1.timeslotId)?.label || '',
-        roomCode: rooms.find(r => r.id === a1.roomId)?.code || '',
+        day: timeslots.find((t) => t.id === a1.timeslotId)?.day || 'Senin',
+        timeslotLabel: timeslots.find((t) => t.id === a1.timeslotId)?.label || '',
+        roomCode: rooms.find((r) => r.id === a1.roomId)?.code || '',
       },
       after: {
-        day: timeslots.find(t => t.id === a2.timeslotId)?.day || 'Senin',
-        timeslotLabel: timeslots.find(t => t.id === a2.timeslotId)?.label || '',
-        roomCode: rooms.find(r => r.id === a2.roomId)?.code || '',
+        day: timeslots.find((t) => t.id === a2.timeslotId)?.day || 'Senin',
+        timeslotLabel: timeslots.find((t) => t.id === a2.timeslotId)?.label || '',
+        roomCode: rooms.find((r) => r.id === a2.roomId)?.code || '',
       },
       method: 'Swap Recommendation',
       reason,
@@ -700,8 +628,44 @@ export default function App() {
       },
     };
 
-    StorageService.addScheduleChangeLog(record);
-    setChangeLogs(StorageService.getScheduleChangeLogs());
+    StorageService.addScheduleChangeLog(record, currentUser);
+    setChangeLogs(StorageService.getScheduleChangeRecords());
+  };
+
+  const handleUpdateAssignmentLecturers = (assignmentId: string, newLecturerIds: string[]) => {
+    if (!currentSchedule) return;
+    const primaryLecturerId = newLecturerIds.length > 0 ? newLecturerIds[0] : null;
+    const targetAssignment = currentSchedule.find((a) => a.id === assignmentId);
+
+    const updated = currentSchedule.map((a) =>
+      a.id === assignmentId ? { ...a, lecturerIds: newLecturerIds, lecturerId: primaryLecturerId } : a
+    );
+    setCurrentSchedule(updated);
+    StorageService.saveCurrentSchedule(updated);
+
+    if (targetAssignment?.courseOfferingId) {
+      const activeOfferings = StorageService.getCourseOfferings();
+      const updatedOfferings = activeOfferings.map((o) => {
+        if (o.id === targetAssignment.courseOfferingId) {
+          const assignedLecs = newLecturerIds
+            .map((id) => lecturers.find((l) => l.id === id))
+            .filter(Boolean) as Lecturer[];
+
+          return {
+            ...o,
+            lecturerIds: newLecturerIds,
+            lecturerId: primaryLecturerId,
+            lecturerName: assignedLecs[0]?.name || null,
+            lecturerCode: assignedLecs[0]?.code || null,
+            lecturerNames: assignedLecs.map((l) => l.name),
+            lecturerCodes: assignedLecs.map((l) => l.code),
+          };
+        }
+        return o;
+      });
+      StorageService.saveCourseOfferings(updatedOfferings);
+      setOfferings(updatedOfferings);
+    }
   };
 
   const handleClearLogs = () => {
@@ -709,7 +673,6 @@ export default function App() {
     setChangeLogs([]);
   };
 
-  // Handler for Parameters & Weights
   const handleSaveParameters = (p: SAParameters) => {
     setParameters(p);
     StorageService.saveParameters(p);
@@ -720,38 +683,38 @@ export default function App() {
     StorageService.saveWeights(w);
   };
 
-  // Active Lecturer & Student Class Entity
   const activeLecturerEntity =
     currentUser.role === 'lecturer'
-      ? lecturers.find(l => l.id === currentUser.lecturerId) || lecturers[0]
+      ? lecturers.find((l) => l.id === currentUser.lecturerId) || lecturers[0]
       : null;
 
-  // Dynamic View Titles
   const viewTitles: Record<string, string> = {
-    dashboard: 'Dashboard SPK Penjadwalan',
+    dashboard: 'Dashboard Sistem Penjadwalan',
     'lecturer-dashboard': 'Portal Dosen Teknik Elektro',
     'lecturer-schedule': 'Jadwal Mengajar Saya',
     'lecturer-availability': 'Ketersediaan & Preferensi Dosen',
-    'student-dashboard': 'Portal Mahasiswa Teknik Elektro',
-    'student-schedule': 'Jadwal Kuliah Mahasiswa',
-    optimization: 'Optimasi Simulated Annealing',
-    schedule: 'Jadwal Kuliah (Timetable Matrix)',
-    conflicts: 'Analisis & Audit Konflik',
-    courses: 'Data Master Mata Kuliah',
-    lecturers: 'Data Master Dosen Pengampu',
-    students: 'Data Master Mahasiswa',
-    classes: 'Data Master Kelas Rombel',
-    rooms: 'Data Master Ruangan & Lab',
-    timeslots: 'Manajemen Slot Waktu Perkuliahan',
-    weights: 'Pengaturan Bobot & Penalti SPK',
-    settings: 'Pengaturan Bobot & Penalti SPK',
-    reports: 'Laporan Hasil Penelitian & Ekspor',
-    research: 'Mode Penelitian & Evaluasi TA',
+    scheduling: 'Penyusunan & Optimasi Jadwal Terpadu',
+    optimization: 'Optimasi Jadwal Simulated Annealing',
+    schedule: currentUser.role === 'student' ? 'Jadwal Saya' : 'Hasil Jadwal Perkuliahan & Rekomendasi',
+    conflicts: 'Analisis & Audit Konflik Jadwal',
+    courses: 'Master Data Mata Kuliah',
+    lecturers: 'Master Data Dosen & Ketersediaan',
+    rooms: 'Master Data Ruangan & Laboratorium',
+    timeslots: 'Tahun Akademik & Sesi Waktu Perkuliahan',
+    packages: 'Kurikulum, KBK & Paket Semester',
+    curriculum: 'Struktur Kurikulum & Klasifikasi KBK',
+    offerings: 'Penyusunan MK & Course Offering',
+    weights: 'Constraint & Preferensi Bobot SA',
+    settings: 'Constraint & Preferensi Bobot SA',
+    reports: 'Rekapitulasi Laporan Jadwal',
+    'report-schedule': 'Rekap Jadwal Perkuliahan',
+    'report-lecturer-load': 'Rekap Beban Mengajar Dosen',
+    'report-room-usage': 'Rekap Penggunaan Ruangan',
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex text-slate-900 font-sans antialiased overflow-x-hidden">
-      {/* Persistent Academic Sidebar */}
+    <div className="h-screen w-screen bg-slate-50 flex text-slate-900 font-sans antialiased overflow-hidden">
+      {/* Persistent Academic Sidebar (Fixed / Sticky) */}
       <Sidebar
         activeView={activeView}
         onSelectView={setActiveView}
@@ -765,8 +728,8 @@ export default function App() {
         scheduleStatus={scheduleStatus}
       />
 
-      {/* Main Content Area with desktop sidebar offset */}
-      <div className="md:pl-64 flex-1 flex flex-col min-w-0 w-full overflow-x-hidden">
+      {/* Main Content Area (Single scroll container) */}
+      <div className="flex-1 h-screen flex flex-col min-w-0 overflow-hidden">
         <Header
           activeViewTitle={viewTitles[activeView] || 'ELEKTRO-SCHEDULER'}
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
@@ -786,317 +749,349 @@ export default function App() {
         />
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto min-w-0">
-          <Suspense fallback={<PageSkeleton />}>
-            {/* LECTURER PORTAL ROUTES */}
-            {activeView === 'lecturer-dashboard' && activeLecturerEntity && (
-              <LecturerDashboardPage
-                currentUser={currentUser}
-                lecturer={activeLecturerEntity}
-                courses={courses}
-                schedule={currentSchedule || []}
-                timeslots={timeslots}
-                rooms={rooms}
-                classes={classes}
-                scheduleStatus={scheduleStatus}
-                onNavigate={setActiveView}
-              />
-            )}
+          <ErrorBoundary key={activeView} onReset={() => window.location.reload()}>
+            <Suspense fallback={<PageSkeleton />}>
+              {/* UNIFIED SCHEDULING WORKFLOW */}
+              {activeView === 'scheduling' && (
+                currentUser.role === 'admin' ? (
+                  <UnifiedSchedulingPage
+                    courses={courses}
+                    lecturers={lecturers}
+                    classes={classes}
+                    rooms={rooms}
+                    timeslots={timeslots}
+                    curriculumPackages={curriculumPackages}
+                    kbks={StorageService.getKbks()}
+                    currentSchedule={currentSchedule}
+                    initialSchedule={initialSchedule}
+                    activeOptimizationResult={activeOptimizationResult}
+                    optimizationHistory={optimizationHistory}
+                    parameters={parameters}
+                    weights={weights}
+                    activeConflicts={activeConflicts}
+                    isOptimizing={isOptimizing}
+                    liveProgressData={liveProgressData}
+                    scheduleStatus={scheduleStatus}
+                    academicYear={academicYear}
+                    onGenerateInitial={handleGenerateInitial}
+                    onRunOptimization={handleRunOptimization}
+                    onStopOptimization={handleStopOptimization}
+                    onChangeParameters={handleSaveParameters}
+                    onSaveSchedule={(sch) => {
+                      setCurrentSchedule(sch);
+                      StorageService.saveCurrentSchedule(sch);
+                    }}
+                    onPublishSchedule={handlePublishSchedule}
+                    onUpdateOfferings={(offs) => {
+                      setOfferings(offs);
+                      StorageService.saveCourseOfferings(offs);
+                    }}
+                    onManualMoveAssignment={handleManualMoveAssignment}
+                    onSwapAssignments={handleSwapAssignments}
+                    onUpdateAssignmentLecturers={handleUpdateAssignmentLecturers}
+                  />
+                ) : (
+                  <AccessDenied
+                    currentUser={currentUser}
+                    requiredRole="Administrator"
+                    onNavigateHome={() => setActiveView('lecturer-dashboard')}
+                    onSwitchToAdmin={() => handleSwitchRole('admin')}
+                  />
+                )
+              )}
+              {/* LECTURER PORTAL ROUTES */}
+              {activeView === 'lecturer-dashboard' && activeLecturerEntity && (
+                <LecturerDashboardPage
+                  currentUser={currentUser}
+                  lecturer={activeLecturerEntity}
+                  courses={courses}
+                  schedule={currentSchedule || []}
+                  timeslots={timeslots}
+                  rooms={rooms}
+                  classes={classes}
+                  scheduleStatus={scheduleStatus}
+                  onNavigate={setActiveView}
+                />
+              )}
 
-            {activeView === 'lecturer-schedule' && activeLecturerEntity && (
-              <LecturerSchedulePage
-                lecturer={activeLecturerEntity}
-                courses={courses}
-                schedule={currentSchedule || []}
-                timeslots={timeslots}
-                rooms={rooms}
-                classes={classes}
-                scheduleStatus={scheduleStatus}
-                academicYear={academicYear}
-              />
-            )}
+              {activeView === 'lecturer-schedule' && activeLecturerEntity && (
+                <LecturerSchedulePage
+                  lecturer={activeLecturerEntity}
+                  courses={courses}
+                  schedule={currentSchedule || []}
+                  timeslots={timeslots}
+                  rooms={rooms}
+                  classes={classes}
+                  scheduleStatus={scheduleStatus}
+                  academicYear={academicYear}
+                />
+              )}
 
-            {activeView === 'lecturer-availability' && activeLecturerEntity && (
-              <LecturerAvailabilityPage
-                lecturer={activeLecturerEntity}
-                timeslots={timeslots}
-                onSaveAvailability={handleSaveLecturerAvailability}
-              />
-            )}
+              {activeView === 'lecturer-availability' && activeLecturerEntity && (
+                <LecturerAvailabilityPage
+                  lecturer={activeLecturerEntity}
+                  timeslots={timeslots}
+                  onSaveAvailability={handleSaveLecturerAvailability}
+                />
+              )}
 
-            {/* STUDENT PORTAL ROUTES */}
-            {activeView === 'student-dashboard' && (
-              <StudentDashboardPage
-                currentUser={currentUser}
-                classes={classes}
-                courses={courses}
-                schedule={currentSchedule || []}
-                timeslots={timeslots}
-                rooms={rooms}
-                lecturers={lecturers}
-                scheduleStatus={scheduleStatus}
-                academicYear={academicYear}
-                onNavigate={setActiveView}
-              />
-            )}
+              {/* 1. ADMIN DASHBOARD */}
+              {activeView === 'dashboard' && (
+                currentUser.role === 'admin' ? (
+                  <DashboardPage
+                    courses={courses}
+                    lecturers={lecturers}
+                    rooms={rooms}
+                    timeslots={timeslots}
+                    currentSchedule={currentSchedule}
+                    initialSchedule={initialSchedule}
+                    activeOptimizationResult={activeOptimizationResult}
+                    offerings={offerings}
+                    packages={curriculumPackages}
+                    onNavigate={setActiveView}
+                    onRunOptimization={() => {
+                      setActiveView('optimization');
+                      handleRunOptimization();
+                    }}
+                    onGenerateInitial={handleGenerateInitial}
+                    isOptimizing={isOptimizing}
+                  />
+                ) : (
+                  <AccessDenied
+                    currentUser={currentUser}
+                    requiredRole="Administrator"
+                    onNavigateHome={() => setActiveView('lecturer-dashboard')}
+                    onSwitchToAdmin={() => handleSwitchRole('admin')}
+                  />
+                )
+              )}
 
-            {activeView === 'student-schedule' && (
-              <StudentSchedulePage
-                currentUser={currentUser}
-                classes={classes}
-                courses={courses}
-                schedule={currentSchedule || []}
-                timeslots={timeslots}
-                rooms={rooms}
-                lecturers={lecturers}
-                scheduleStatus={scheduleStatus}
-                academicYear={academicYear}
-              />
-            )}
+              {/* 2. OPTIMIZATION PAGE */}
+              {activeView === 'optimization' && (
+                permissions.canOptimize ? (
+                  <OptimizationPage
+                    parameters={parameters}
+                    onChangeParameters={handleSaveParameters}
+                    weights={weights}
+                    courses={courses}
+                    lecturers={lecturers}
+                    classes={classes}
+                    rooms={rooms}
+                    timeslots={timeslots}
+                    currentSchedule={currentSchedule}
+                    initialSchedule={initialSchedule}
+                    activeOptimizationResult={activeOptimizationResult}
+                    onGenerateInitial={handleGenerateInitial}
+                    onRunOptimization={handleRunOptimization}
+                    onStopOptimization={handleStopOptimization}
+                    isOptimizing={isOptimizing}
+                    liveProgressData={liveProgressData}
+                    onNavigate={setActiveView}
+                  />
+                ) : (
+                  <AccessDenied
+                    currentUser={currentUser}
+                    requiredRole="Administrator"
+                    onNavigateHome={() => setActiveView('lecturer-dashboard')}
+                    onSwitchToAdmin={() => handleSwitchRole('admin')}
+                  />
+                )
+              )}
 
-            {/* 1. ADMIN DASHBOARD */}
-            {activeView === 'dashboard' && (
-              currentUser.role === 'admin' ? (
-                <DashboardPage
+              {/* 3. TIMETABLE SCHEDULE & RECOMMENDATIONS */}
+              {activeView === 'schedule' && (
+                currentUser.role === 'student' ? (
+                  <StudentSchedulePage
+                    currentUser={currentUser}
+                    currentSchedule={currentSchedule}
+                    courses={courses}
+                    lecturers={lecturers}
+                    classes={classes}
+                    rooms={rooms}
+                    timeslots={timeslots}
+                    scheduleStatus={scheduleStatus}
+                    academicYear={academicYear}
+                  />
+                ) : (
+                  <TimetablePage
+                    currentSchedule={currentSchedule}
+                    courses={courses}
+                    lecturers={lecturers}
+                    classes={classes}
+                    rooms={rooms}
+                    timeslots={timeslots}
+                    conflicts={activeConflicts}
+                    weights={weights}
+                    onManualMoveAssignment={handleManualMoveAssignment}
+                    onSwapAssignments={handleSwapAssignments}
+                    changeLogs={changeLogs}
+                    onClearLogs={handleClearLogs}
+                    onUpdateAssignmentLecturers={handleUpdateAssignmentLecturers}
+                  />
+                )
+              )}
+
+              {/* 4. CONFLICT ANALYSIS */}
+              {activeView === 'conflicts' && (
+                <ConflictAnalysisPage
+                  conflicts={activeConflicts}
                   courses={courses}
                   lecturers={lecturers}
-                  students={students}
                   classes={classes}
                   rooms={rooms}
                   timeslots={timeslots}
                   currentSchedule={currentSchedule}
-                  initialSchedule={initialSchedule}
-                  activeOptimizationResult={activeOptimizationResult}
                   onNavigate={setActiveView}
-                  onRunOptimization={() => {
-                    setActiveView('optimization');
-                    handleRunOptimization();
-                  }}
-                  onGenerateInitial={handleGenerateInitial}
-                  isOptimizing={isOptimizing}
                 />
-              ) : (
-                <AccessDenied
-                  currentUser={currentUser}
-                  requiredRole="Administrator"
-                  onNavigateHome={() => setActiveView(currentUser.role === 'lecturer' ? 'lecturer-dashboard' : 'student-dashboard')}
-                  onSwitchToAdmin={() => handleSwitchRole('admin')}
-                />
-              )
-            )}
+              )}
 
-            {/* 2. OPTIMIZATION PAGE */}
-            {activeView === 'optimization' && (
-              permissions.canOptimize ? (
-                <OptimizationPage
-                  parameters={parameters}
-                  onChangeParameters={handleSaveParameters}
-                  weights={weights}
+              {/* MASTER DATA */}
+              {activeView === 'timeslots' && (
+                <TimeslotsPage
+                  timeslots={timeslots}
+                  schedule={currentSchedule || []}
+                  permissions={permissions}
+                  onSaveTimeslot={handleSaveTimeslot}
+                  onDeleteTimeslot={handleDeleteTimeslot}
+                  onToggleTimeslot={handleToggleTimeslot}
+                  onResetDefaultTimeslots={handleResetDefaultTimeslots}
+                />
+              )}
+
+              {activeView === 'packages' && (
+                <CurriculumPackagesPage />
+              )}
+
+              {activeView === 'curriculum' && (
+                <CurriculumStructurePage />
+              )}
+
+              {activeView === 'courses' && (
+                <CoursesPage
                   courses={courses}
                   lecturers={lecturers}
                   classes={classes}
+                  schedule={currentSchedule || []}
+                  permissions={permissions}
+                  onSaveCourse={handleSaveCourse}
+                  onDeleteCourse={handleDeleteCourse}
+                />
+              )}
+
+              {activeView === 'lecturers' && (
+                <LecturersPage
+                  lecturers={lecturers}
+                  courses={courses}
+                  schedule={currentSchedule || []}
+                  permissions={permissions}
+                  onSaveLecturer={handleSaveLecturer}
+                  onDeleteLecturer={handleDeleteLecturer}
+                />
+              )}
+
+              {activeView === 'rooms' && (
+                <RoomsPage
                   rooms={rooms}
-                  timeslots={timeslots}
+                  schedule={currentSchedule || []}
+                  permissions={permissions}
+                  onSaveRoom={handleSaveRoom}
+                  onDeleteRoom={handleDeleteRoom}
+                />
+              )}
+
+              {activeView === 'offerings' && (
+                <CourseOfferingsPage />
+              )}
+
+              {/* CONSTRAINT & SETTINGS */}
+              {(activeView === 'weights' || activeView === 'settings') && (
+                permissions.canAccessResearchMode ? (
+                  <WeightsConfigPage
+                    weights={weights}
+                    onSaveWeights={handleSaveWeights}
+                  />
+                ) : (
+                  <AccessDenied
+                    currentUser={currentUser}
+                    requiredRole="Administrator"
+                    onNavigateHome={() => setActiveView('lecturer-dashboard')}
+                    onSwitchToAdmin={() => handleSwitchRole('admin')}
+                  />
+                )
+              )}
+
+              {/* REPORTS & RECAPS */}
+              {(activeView === 'reports' || activeView === 'report-schedule') && (
+                <ReportsPage
+                  initialTab="schedule"
+                  activeOptimizationResult={activeOptimizationResult}
                   currentSchedule={currentSchedule}
-                  initialSchedule={initialSchedule}
-                  activeOptimizationResult={activeOptimizationResult}
-                  onGenerateInitial={handleGenerateInitial}
-                  onRunOptimization={handleRunOptimization}
-                  onStopOptimization={handleStopOptimization}
-                  isOptimizing={isOptimizing}
-                  liveProgressData={liveProgressData}
-                  onNavigate={setActiveView}
-                />
-              ) : (
-                <AccessDenied
-                  currentUser={currentUser}
-                  requiredRole="Administrator"
-                  onNavigateHome={() => setActiveView(currentUser.role === 'lecturer' ? 'lecturer-dashboard' : 'student-dashboard')}
-                  onSwitchToAdmin={() => handleSwitchRole('admin')}
-                />
-              )
-            )}
-
-            {/* 3. TIMETABLE SCHEDULE (ALL ROLES CAN VIEW, BUT EDITING RESTRICTED) */}
-            {activeView === 'schedule' && (
-              <TimetablePage
-                currentSchedule={currentSchedule}
-                courses={courses}
-                lecturers={lecturers}
-                classes={classes}
-                rooms={rooms}
-                timeslots={timeslots}
-                conflicts={activeConflicts}
-                weights={weights}
-                onManualMoveAssignment={handleManualMoveAssignment}
-                onSwapAssignments={handleSwapAssignments}
-                changeLogs={changeLogs}
-                onClearLogs={handleClearLogs}
-              />
-            )}
-
-            {/* 4. CONFLICT ANALYSIS */}
-            {activeView === 'conflicts' && (
-              <ConflictAnalysisPage
-                conflicts={activeConflicts}
-                courses={courses}
-                lecturers={lecturers}
-                classes={classes}
-                rooms={rooms}
-                timeslots={timeslots}
-                currentSchedule={currentSchedule}
-                onNavigate={setActiveView}
-              />
-            )}
-
-            {/* ACADEMIC DATA & CURRICULUM */}
-            {activeView === 'curriculum' && (
-              <CurriculumStructurePage />
-            )}
-
-            {activeView === 'packages' && (
-              <CurriculumPackagesPage />
-            )}
-
-            {activeView === 'curriculum-analysis' && (
-              <CurriculumAnalysisPage />
-            )}
-
-            {activeView === 'offerings' && (
-              <CourseOfferingsPage />
-            )}
-
-            {/* 5. COURSES CRUD */}
-            {activeView === 'courses' && (
-              <CoursesPage
-                courses={courses}
-                lecturers={lecturers}
-                classes={classes}
-                schedule={currentSchedule || []}
-                permissions={permissions}
-                onSaveCourse={handleSaveCourse}
-                onDeleteCourse={handleDeleteCourse}
-              />
-            )}
-
-            {/* 6. LECTURERS CRUD */}
-            {activeView === 'lecturers' && (
-              <LecturersPage
-                lecturers={lecturers}
-                courses={courses}
-                schedule={currentSchedule || []}
-                permissions={permissions}
-                onSaveLecturer={handleSaveLecturer}
-                onDeleteLecturer={handleDeleteLecturer}
-              />
-            )}
-
-            {/* 6B. STUDENTS CRUD */}
-            {activeView === 'students' && (
-              <StudentsPage
-                students={students}
-                classes={classes}
-                academicYear={academicYear}
-                onAddStudent={handleSaveStudent}
-                onEditStudent={handleSaveStudent}
-                onDeleteStudent={handleDeleteStudent}
-              />
-            )}
-
-            {/* 7. CLASSES CRUD */}
-            {activeView === 'classes' && (
-              <ClassesPage
-                classes={classes}
-                courses={courses}
-                schedule={currentSchedule || []}
-                permissions={permissions}
-                onSaveClass={handleSaveClass}
-                onDeleteClass={handleDeleteClass}
-              />
-            )}
-
-            {/* 8. ROOMS CRUD */}
-            {activeView === 'rooms' && (
-              <RoomsPage
-                rooms={rooms}
-                schedule={currentSchedule || []}
-                permissions={permissions}
-                onSaveRoom={handleSaveRoom}
-                onDeleteRoom={handleDeleteRoom}
-              />
-            )}
-
-            {/* 9. TIMESLOTS MATRIX CRUD */}
-            {activeView === 'timeslots' && (
-              <TimeslotsPage
-                timeslots={timeslots}
-                schedule={currentSchedule || []}
-                permissions={permissions}
-                onSaveTimeslot={handleSaveTimeslot}
-                onDeleteTimeslot={handleDeleteTimeslot}
-                onToggleTimeslot={handleToggleTimeslot}
-                onResetDefaultTimeslots={handleResetDefaultTimeslots}
-              />
-            )}
-
-            {/* 10. WEIGHTS CONFIGURATION */}
-            {(activeView === 'weights' || activeView === 'settings') && (
-              permissions.canAccessResearchMode ? (
-                <WeightsConfigPage
-                  weights={weights}
-                  onSaveWeights={handleSaveWeights}
-                />
-              ) : (
-                <AccessDenied
-                  currentUser={currentUser}
-                  requiredRole="Administrator"
-                  onNavigateHome={() => setActiveView(currentUser.role === 'lecturer' ? 'lecturer-dashboard' : 'student-dashboard')}
-                  onSwitchToAdmin={() => handleSwitchRole('admin')}
-                />
-              )
-            )}
-
-            {/* 11. REPORTS & EXPORT */}
-            {activeView === 'reports' && (
-              <ReportsPage
-                activeOptimizationResult={activeOptimizationResult}
-                currentSchedule={currentSchedule}
-                courses={courses}
-                lecturers={lecturers}
-                classes={classes}
-                rooms={rooms}
-                timeslots={timeslots}
-                conflicts={activeConflicts}
-              />
-            )}
-
-            {/* 12. RESEARCH MODE & TA EVALUATION */}
-            {activeView === 'research' && (
-              permissions.canAccessResearchMode ? (
-                <ResearchModePage
-                  activeResult={activeOptimizationResult}
-                  history={optimizationHistory}
-                  parameters={parameters}
-                  weights={weights}
                   courses={courses}
                   lecturers={lecturers}
+                  classes={classes}
                   rooms={rooms}
                   timeslots={timeslots}
+                  conflicts={activeConflicts}
+                  offerings={offerings}
+                />
+              )}
+
+              {activeView === 'report-lecturer-load' && (
+                <ReportsPage
+                  initialTab="lecturer-load"
+                  activeOptimizationResult={activeOptimizationResult}
+                  currentSchedule={currentSchedule}
+                  courses={courses}
+                  lecturers={lecturers}
                   classes={classes}
-                  onNavigateToOptimization={() => setActiveView('optimization')}
+                  rooms={rooms}
+                  timeslots={timeslots}
+                  conflicts={activeConflicts}
+                  offerings={offerings}
                 />
-              ) : (
-                <AccessDenied
-                  currentUser={currentUser}
-                  requiredRole="Administrator / Tim Peneliti"
-                  onNavigateHome={() => setActiveView(currentUser.role === 'lecturer' ? 'lecturer-dashboard' : 'student-dashboard')}
-                  onSwitchToAdmin={() => handleSwitchRole('admin')}
+              )}
+
+              {activeView === 'report-room-usage' && (
+                <ReportsPage
+                  initialTab="room-usage"
+                  activeOptimizationResult={activeOptimizationResult}
+                  currentSchedule={currentSchedule}
+                  courses={courses}
+                  lecturers={lecturers}
+                  classes={classes}
+                  rooms={rooms}
+                  timeslots={timeslots}
+                  conflicts={activeConflicts}
+                  offerings={offerings}
                 />
-              )
-            )}
-          </Suspense>
+              )}
+
+              {/* SCHEDULE HISTORY & AUDIT LOGS */}
+              {activeView === 'schedule-history' && (
+                currentUser.role === 'admin' ? (
+                  <ScheduleHistoryPage
+                    currentUser={currentUser}
+                    onNavigateToSchedule={() => setActiveView('schedule')}
+                    onRefreshScheduleState={() => {
+                      setCurrentSchedule(StorageService.getCurrentSchedule());
+                      setOfferings(StorageService.getCourseOfferings());
+                      setScheduleStatus(StorageService.getScheduleStatus());
+                      setAcademicYear(StorageService.getAcademicYear());
+                    }}
+                  />
+                ) : (
+                  <AccessDenied
+                    currentUser={currentUser}
+                    requiredRole="Administrator"
+                    onNavigateHome={() => setActiveView('lecturer-dashboard')}
+                    onSwitchToAdmin={() => handleSwitchRole('admin')}
+                  />
+                )
+              )}
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
     </div>
   );
 }
-

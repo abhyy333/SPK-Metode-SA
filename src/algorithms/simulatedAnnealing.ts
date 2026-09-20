@@ -13,9 +13,21 @@ import {
   Student,
   StudentEnrollment,
   CurriculumPackage,
+  CourseOffering,
 } from '../types';
 import { evaluateSchedule } from './fitness';
 import { generateNeighbor } from './neighborGeneration';
+
+// Seeded pseudo-random number generator (Mulberry32)
+function createSeededRNG(seed: number): () => number {
+  let a = seed | 0;
+  return function () {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 export interface SAProgressCallbackData {
   iteration: number;
@@ -45,6 +57,10 @@ export class SimulatedAnnealingEngine {
     this.shouldStop = true;
   }
 
+  public abort(): void {
+    this.shouldStop = true;
+  }
+
   public getIsRunning(): boolean {
     return this.isRunning;
   }
@@ -64,11 +80,17 @@ export class SimulatedAnnealingEngine {
     onProgress?: SAProgressCallback,
     students?: Student[],
     enrollments?: StudentEnrollment[],
-    curriculumPackages?: CurriculumPackage[]
+    curriculumPackages?: CurriculumPackage[],
+    offerings?: CourseOffering[]
   ): Promise<OptimizationResult> {
     this.isRunning = true;
     this.shouldStop = false;
     const startTime = performance.now();
+
+    // Deterministic random RNG generator
+    const rng = parameters.randomSeed !== undefined && parameters.randomSeed !== null
+      ? createSeededRNG(parameters.randomSeed)
+      : Math.random;
 
     // 1. Initial State Evaluation
     let currentSolution: ScheduleAssignment[] = initialSchedule.map(a => ({ ...a }));
@@ -82,7 +104,8 @@ export class SimulatedAnnealingEngine {
       weights,
       students,
       enrollments,
-      curriculumPackages
+      curriculumPackages,
+      offerings
     );
     let currentCost = currentEval.cost;
 
@@ -130,14 +153,15 @@ export class SimulatedAnnealingEngine {
         .flat()
         .filter((id): id is string => Boolean(id));
 
-      // Generate neighbor solution
+      // Generate neighbor solution respecting locked assignments and seeded RNG
       const { neighbor, moveType } = generateNeighbor(
         currentSolution,
         courses,
         rooms,
         timeslots,
         parameters.mutationRate,
-        conflictAssignmentIds
+        conflictAssignmentIds,
+        rng
       );
 
       // Evaluate neighbor
@@ -151,7 +175,8 @@ export class SimulatedAnnealingEngine {
         weights,
         students,
         enrollments,
-        curriculumPackages
+        curriculumPackages,
+        offerings
       );
       const neighborCost = neighborEval.cost;
       const deltaCost = neighborCost - currentCost;
@@ -167,11 +192,10 @@ export class SimulatedAnnealingEngine {
         acceptanceProbability = 1.0;
       } else {
         // Worse solution -> metropolis acceptance probability
-        // Prevent floating point division by near-zero temperature
         const safeTemp = Math.max(temperature, 1e-10);
         acceptanceProbability = Math.exp(-deltaCost / safeTemp);
         
-        if (Math.random() < acceptanceProbability) {
+        if (rng() < acceptanceProbability) {
           accepted = true;
         }
       }
@@ -266,6 +290,13 @@ export class SimulatedAnnealingEngine {
 
     this.isRunning = false;
 
+    // Safety Invariant check: Ensure initialSchedule count strictly matches bestSolution count
+    if (bestSolution.length !== initialSchedule.length) {
+      console.error(
+        `[SA Integrity Warning] Assignment count mismatch: Initial ${initialSchedule.length}, Best ${bestSolution.length}`
+      );
+    }
+
     // Final evaluation for best solution
     const finalEval = evaluateSchedule(
       bestSolution,
@@ -274,7 +305,11 @@ export class SimulatedAnnealingEngine {
       classes,
       rooms,
       timeslots,
-      weights
+      weights,
+      students,
+      enrollments,
+      curriculumPackages,
+      offerings
     );
 
     const result: OptimizationResult = {

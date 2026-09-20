@@ -1,9 +1,9 @@
-import { Course, Lecturer, ClassGroup, Room, Timeslot, ScheduleAssignment, CourseOffering } from '../types';
+import { Course, Room, Timeslot, ScheduleAssignment, CourseOffering } from '../types';
 
 /**
  * Generates an initial schedule assignment array.
- * If offerings are provided, each CourseOffering is assigned a room and timeslot.
- * Uses lecturerId from the offering (null if not yet assigned).
+ * Strictly schedules ALL active theory CourseOfferings (excluding practicum and closed electives).
+ * Preserves lecturer assignments (lecturerIds and primary lecturerId) from CourseOffering.
  * Dosen tidak pernah otomatis dipilih secara random.
  */
 export function generateInitialSchedule(
@@ -21,36 +21,41 @@ export function generateInitialSchedule(
   }
 
   const assignments: ScheduleAssignment[] = [];
+  const courseMap = new Map<string, Course>(courses.map(c => [c.id, c]));
+  courses.forEach(c => {
+    if (c.code) courseMap.set(c.code, c);
+  });
 
   // Group rooms for varied assignment
   const lectureRooms = activeRooms.filter(r => r.type === 'Kelas');
-  const labRooms = activeRooms.filter(r => r.type === 'Laboratorium');
   const availableGeneralRooms = lectureRooms.length > 0 ? lectureRooms : activeRooms;
 
   if (offerings && offerings.length > 0) {
-    offerings.forEach((off, index) => {
-      const course = courses.find(c => c.id === off.courseId || c.code === off.courseId);
+    // Strictly filter for active theory offerings (exclude practicum & closed electives)
+    const activeTheoryOfferings = offerings.filter(off => {
+      if (off.isPracticum) return false;
+      if ((off.status as any) === 'closed_low_enrollment') return false;
+      const c = courseMap.get(off.courseId) || (off.courseCode ? courseMap.get(off.courseCode) : null);
+      if (c && (c.type === 'Praktikum' || (c.name || '').toLowerCase().includes('praktikum'))) {
+        return false;
+      }
+      return true;
+    });
+
+    activeTheoryOfferings.forEach((off, index) => {
       let chosenRoom: Room;
       let chosenTimeslot: Timeslot;
 
       if (forceConflictDensity === 'realistic') {
-        const isRandomClash = Math.random() < 0.45;
+        const isRandomClash = Math.random() < 0.35;
         if (isRandomClash && assignments.length > 0) {
           const previousTarget = assignments[Math.floor(Math.random() * assignments.length)];
           const prevSlot = activeTimeslots.find(t => t.id === previousTarget.timeslotId);
           chosenTimeslot = prevSlot || activeTimeslots[Math.floor(Math.random() * activeTimeslots.length)];
         } else {
-          chosenTimeslot = activeTimeslots[Math.floor(Math.random() * activeTimeslots.length)];
+          chosenTimeslot = activeTimeslots[index % activeTimeslots.length];
         }
-
-        const isLab = course?.type === 'Praktikum' || (course?.name || off.courseName || '').toLowerCase().includes('praktikum');
-        if (isLab && Math.random() > 0.35 && labRooms.length > 0) {
-          chosenRoom = Math.random() > 0.5
-            ? labRooms[Math.floor(Math.random() * labRooms.length)]
-            : availableGeneralRooms[Math.floor(Math.random() * availableGeneralRooms.length)];
-        } else {
-          chosenRoom = activeRooms[Math.floor(Math.random() * activeRooms.length)];
-        }
+        chosenRoom = availableGeneralRooms[index % availableGeneralRooms.length];
       } else {
         chosenRoom = activeRooms[Math.floor(Math.random() * activeRooms.length)];
         chosenTimeslot = activeTimeslots[Math.floor(Math.random() * activeTimeslots.length)];
@@ -61,7 +66,7 @@ export function generateInitialSchedule(
         : (off.lecturerId ? [off.lecturerId] : []);
 
       assignments.push({
-        id: `assign-${off.id}-${index}-${Date.now().toString(36)}`,
+        id: `assign-${off.id}`,
         courseId: off.courseId,
         courseOfferingId: off.id,
         lecturerId: assignedLecs.length > 0 ? assignedLecs[0] : null,
@@ -72,36 +77,28 @@ export function generateInitialSchedule(
       });
     });
   } else {
-    courses.forEach((course, index) => {
+    // Fallback if no offerings: only schedule non-practicum courses
+    const nonPracticumCourses = courses.filter(
+      c => c.type !== 'Praktikum' && !(c.name || '').toLowerCase().includes('praktikum')
+    );
+
+    nonPracticumCourses.forEach((course, index) => {
       let chosenRoom: Room;
       let chosenTimeslot: Timeslot;
 
       if (forceConflictDensity === 'realistic') {
-        const isRandomClash = Math.random() < 0.45;
-        if (isRandomClash && assignments.length > 0) {
-          const previousTarget = assignments[Math.floor(Math.random() * assignments.length)];
-          const prevSlot = activeTimeslots.find(t => t.id === previousTarget.timeslotId);
-          chosenTimeslot = prevSlot || activeTimeslots[Math.floor(Math.random() * activeTimeslots.length)];
-        } else {
-          chosenTimeslot = activeTimeslots[Math.floor(Math.random() * activeTimeslots.length)];
-        }
-
-        if (course.type === 'Praktikum' && Math.random() > 0.35 && labRooms.length > 0) {
-          chosenRoom = Math.random() > 0.5
-            ? labRooms[Math.floor(Math.random() * labRooms.length)]
-            : availableGeneralRooms[Math.floor(Math.random() * availableGeneralRooms.length)];
-        } else {
-          chosenRoom = activeRooms[Math.floor(Math.random() * activeRooms.length)];
-        }
+        chosenTimeslot = activeTimeslots[index % activeTimeslots.length];
+        chosenRoom = availableGeneralRooms[index % availableGeneralRooms.length];
       } else {
         chosenRoom = activeRooms[Math.floor(Math.random() * activeRooms.length)];
         chosenTimeslot = activeTimeslots[Math.floor(Math.random() * activeTimeslots.length)];
       }
 
       assignments.push({
-        id: `assign-${course.id}-${index}-${Date.now().toString(36)}`,
+        id: `assign-crs-${course.id}-${index}`,
         courseId: course.id,
-        lecturerId: null, // Master Mata Kuliah tidak menyimpan dosen
+        lecturerId: course.lecturerId || null,
+        lecturerIds: course.lecturerId ? [course.lecturerId] : [],
         classId: course.classId || 'cls-1a',
         roomId: chosenRoom.id,
         timeslotId: chosenTimeslot.id,

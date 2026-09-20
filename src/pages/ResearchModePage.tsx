@@ -227,15 +227,15 @@ export const ResearchModePage: React.FC<ResearchModePageProps> = ({
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Audit Hasil Optimasi Aktif</h3>
                   <p className="text-xs text-slate-500">
-                    Selesai dalam {activeResult.executionTimeMs} ms • {activeResult.totalIterations} iterasi dieksekusi
+                    Selesai dalam {activeResult.executionTimeMs || 0} ms • {activeResult.totalIterationsCompleted || (activeResult as any).totalIterations || 0} iterasi dieksekusi
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <Badge variant="success" size="sm">
-                    Konflik Akhir: {activeResult.finalFitness.totalConflicts}
+                    Konflik Akhir: {activeResult.bestConflicts?.total ?? (activeResult as any).finalFitness?.totalConflicts ?? 0}
                   </Badge>
                   <Badge variant="indigo" size="sm">
-                    Cost: {activeResult.finalFitness.cost}
+                    Cost: {activeResult.bestCost ?? (activeResult as any).finalFitness?.cost ?? 0}
                   </Badge>
                 </div>
               </div>
@@ -259,10 +259,10 @@ export const ResearchModePage: React.FC<ResearchModePageProps> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {activeResult.sampleTrace.map(tr => (
+                      {(activeResult.sampleTrace || []).map(tr => (
                         <tr key={tr.iteration} className="hover:bg-slate-50">
                           <td className="p-2.5 font-bold">{tr.iteration}</td>
-                          <td className="p-2.5 text-slate-600">{tr.temperature.toFixed(2)}</td>
+                          <td className="p-2.5 text-slate-600">{tr.temperature?.toFixed(2) ?? '-'}</td>
                           <td className="p-2.5">{tr.currentCost}</td>
                           <td className="p-2.5">{tr.neighborCost}</td>
                           <td className={`p-2.5 font-bold ${tr.deltaCost <= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -276,18 +276,14 @@ export const ResearchModePage: React.FC<ResearchModePageProps> = ({
                           <td className="p-2.5">
                             <span
                               className={`px-2 py-0.5 rounded text-[10px] font-sans font-bold ${
-                                tr.action === 'ACCEPTED_IMPROVEMENT'
+                                tr.isNewBest
                                   ? 'bg-emerald-100 text-emerald-800'
-                                  : tr.action === 'ACCEPTED_WORSE'
+                                  : tr.accepted
                                   ? 'bg-amber-100 text-amber-800'
                                   : 'bg-rose-50 text-rose-700'
                               }`}
                             >
-                              {tr.action === 'ACCEPTED_IMPROVEMENT'
-                                ? 'Diterima (Lebih Baik)'
-                                : tr.action === 'ACCEPTED_WORSE'
-                                ? 'Diterima (Probabilistik)'
-                                : 'Ditolak'}
+                              {tr.actionTaken || (tr.isNewBest ? 'Solusi Terbaik Baru' : tr.accepted ? 'Diterima' : 'Ditolak')}
                             </span>
                           </td>
                         </tr>
@@ -332,7 +328,7 @@ export const ResearchModePage: React.FC<ResearchModePageProps> = ({
                 <li><strong>C1 (Dosen Overlap)</strong>: Dosen tidak boleh mengajar dua mata kuliah pada waktu yang sama.</li>
                 <li><strong>C2 (Ruangan Overlap)</strong>: Ruangan tidak boleh digunakan oleh dua mata kuliah pada waktu yang sama.</li>
                 <li><strong>C3 (Kelas Overlap)</strong>: Rombel kelas tidak boleh memiliki dua jadwal kuliah pada waktu yang sama.</li>
-                <li><strong>C4 (Kapasitas Ruang)</strong>: Jumlah mahasiswa tidak boleh melebihi kapasitas kursi ruangan.</li>
+                <li><strong>C4 (Kapasitas Ruang & Retake)</strong>: Jumlah mahasiswa tidak boleh melebihi kapasitas kursi dan bentrokan jadwal mahasiswa mengulang dicegah.</li>
                 <li><strong>C5 (Ketersediaan Dosen)</strong>: Kuliah tidak boleh dijadwalkan pada hari/slot yang ditandai tidak tersedia oleh dosen.</li>
               </ul>
             </div>
@@ -366,38 +362,44 @@ export const ResearchModePage: React.FC<ResearchModePageProps> = ({
             </div>
           ) : (
             <div className="space-y-2.5">
-              {history.map((h, idx) => (
-                <div key={h.id || idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900">Run #{history.length - idx}</span>
-                      <span className="text-[10px] text-slate-400">
-                        {new Date(h.timestamp).toLocaleString('id-ID')}
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-3">
-                      <span>T0: {h.parameters.initialTemperature}</span>
-                      <span>α: {h.parameters.coolingRate}</span>
-                      <span>Iterasi: {h.totalIterations}</span>
-                      <span>Waktu: {h.executionTimeMs} ms</span>
-                    </div>
-                  </div>
+              {history.map((h, idx) => {
+                const initialTotal = h.initialConflicts?.total ?? (h as any).initialFitness?.totalConflicts ?? (h as any).initialConflictsCount ?? 0;
+                const bestTotal = h.bestConflicts?.total ?? (h as any).finalFitness?.totalConflicts ?? (h as any).bestConflictsCount ?? 0;
+                const drop = Math.max(0, initialTotal - bestTotal);
 
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right">
-                      <div className="text-xs font-bold text-slate-900">
-                        {h.initialFitness.totalConflicts} → {h.finalFitness.totalConflicts} Konflik
+                return (
+                  <div key={h.id || idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900">Run #{history.length - idx}</span>
+                        <span className="text-[10px] text-slate-400">
+                          {h.timestamp ? new Date(h.timestamp).toLocaleString('id-ID') : '-'}
+                        </span>
                       </div>
-                      <div className="text-[10px] text-emerald-600 font-semibold">
-                        Penurunan {h.initialFitness.totalConflicts - h.finalFitness.totalConflicts} Konflik
+                      <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-3">
+                        <span>T0: {h.parameters?.initialTemperature ?? '-'}</span>
+                        <span>α: {h.parameters?.coolingRate ?? '-'}</span>
+                        <span>Iterasi: {h.totalIterationsCompleted || (h as any).totalIterations || 0}</span>
+                        <span>Waktu: {h.executionTimeMs || 0} ms</span>
                       </div>
                     </div>
-                    <Badge variant={h.finalFitness.totalConflicts === 0 ? 'success' : 'indigo'} size="sm">
-                      {h.finalFitness.totalConflicts === 0 ? '0 Konflik ✓' : `${h.finalFitness.totalConflicts} Konflik`}
-                    </Badge>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-right">
+                        <div className="text-xs font-bold text-slate-900">
+                          {initialTotal} → {bestTotal} Konflik
+                        </div>
+                        <div className="text-[10px] text-emerald-600 font-semibold">
+                          Penurunan {drop} Konflik
+                        </div>
+                      </div>
+                      <Badge variant={bestTotal === 0 ? 'success' : 'indigo'} size="sm">
+                        {bestTotal === 0 ? '0 Konflik ✓' : `${bestTotal} Konflik`}
+                      </Badge>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -50,6 +50,8 @@ export const LecturerAvailabilityPage: React.FC<LecturerAvailabilityPageProps> =
       Rabu: 'neutral',
       Kamis: 'neutral',
       Jumat: 'neutral',
+      Sabtu: 'neutral',
+      Minggu: 'neutral',
     }
   );
 
@@ -262,12 +264,12 @@ export const LecturerAvailabilityPage: React.FC<LecturerAvailabilityPageProps> =
             <tbody className="divide-y divide-slate-100">
               {uniqueSlotIndices.map(slotIdx => {
                 const sampleSlot = timeslots.find(t => t.slotIndex === slotIdx);
-                const slotLabel = sampleSlot?.label || `Slot #${slotIdx}`;
+                const slotLabel = sampleSlot?.label || `Sesi ${slotIdx}`;
 
                 return (
                   <tr key={slotIdx} className="hover:bg-slate-50/50">
                     <td className="p-3 text-left font-mono font-semibold text-slate-800 bg-slate-50/30 whitespace-nowrap">
-                      <div>Slot #{slotIdx}</div>
+                      <div>Sesi {slotIdx}</div>
                       <div className="text-[10px] text-slate-400 font-sans">{slotLabel}</div>
                     </td>
 
@@ -376,7 +378,7 @@ export const LecturerAvailabilityPage: React.FC<LecturerAvailabilityPageProps> =
                 <div>
                   <span className="text-xs font-bold text-slate-800">{timeCat}</span>
                   <div className="text-[10px] text-slate-400">
-                    {timeCat === 'Pagi' ? 'Slot 1 - 2' : timeCat === 'Siang' ? 'Slot 3 - 4' : 'Slot 5'}
+                    {timeCat === 'Pagi' ? 'Sesi 1 - 2' : timeCat === 'Siang' ? 'Sesi 3 - 4' : 'Sesi 5'}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">

@@ -112,7 +112,6 @@ export const Header: React.FC<HeaderProps> = ({
         <RoleSwitcher
           currentUser={currentUser}
           lecturers={lecturers}
-          classes={classes}
           scheduleStatus={scheduleStatus}
           onSwitchRole={onSwitchRole}
           onPublishSchedule={onPublishSchedule}

@@ -35,30 +35,31 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = React.memo(({
           : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-xs'
       }`}
     >
-      {/* Status indicator pill */}
-      <div className="flex items-start justify-between gap-1 mb-1.5">
-        <span className="text-xs font-extrabold text-slate-900 tracking-tight">
-          {course?.code || assignment.courseId}
-        </span>
+      {/* Status indicator and course header */}
+      <div className="flex items-start justify-between gap-1 mb-1">
+        <div className="min-w-0 flex-1">
+          <div className="text-xs font-bold text-slate-900 line-clamp-2 leading-snug">
+            {course?.name || 'Mata Kuliah'}
+          </div>
+          <div className="text-[11px] font-mono font-medium text-slate-500 tracking-tight mt-0.5">
+            {course?.code || assignment.courseId}
+          </div>
+        </div>
         {status === 'bentrok' ? (
-          <Badge variant="danger" size="sm">
+          <Badge variant="danger" size="sm" className="shrink-0">
             <ShieldAlert className="w-2.5 h-2.5 animate-pulse" />
             BENTROK
           </Badge>
         ) : status === 'perhatian' ? (
-          <Badge variant="warning" size="sm">
+          <Badge variant="warning" size="sm" className="shrink-0">
             <AlertTriangle className="w-2.5 h-2.5" />
             Perhatian
           </Badge>
         ) : (
-          <Badge variant="success" size="sm">
+          <Badge variant="success" size="sm" className="shrink-0">
             AMAN
           </Badge>
         )}
-      </div>
-
-      <div className="text-xs font-semibold text-slate-800 line-clamp-2 leading-snug">
-        {course?.name || 'Mata Kuliah'}
       </div>
 
       <div className="mt-2 pt-1.5 border-t border-slate-100 text-[11px] text-slate-600 space-y-0.5">

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   BookOpen,
   Users,
@@ -12,9 +12,11 @@ import {
   ArrowRight,
   BarChart3,
   Calendar,
-  Activity,
   Layers,
-  GraduationCap,
+  Building2,
+  Sliders,
+  CheckCircle,
+  FileText,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -31,25 +33,25 @@ import {
 import {
   Course,
   Lecturer,
-  Student,
-  ClassGroup,
   Room,
   Timeslot,
   OptimizationResult,
   ScheduleAssignment,
+  CourseOffering,
+  CurriculumPackage,
 } from '../types';
 import { Badge } from '../components/ui/Badge';
 
 interface DashboardPageProps {
   courses: Course[];
   lecturers: Lecturer[];
-  students?: Student[];
-  classes: ClassGroup[];
   rooms: Room[];
   timeslots: Timeslot[];
   currentSchedule: ScheduleAssignment[] | null;
   initialSchedule: ScheduleAssignment[] | null;
   activeOptimizationResult: OptimizationResult | null;
+  offerings?: CourseOffering[];
+  packages?: CurriculumPackage[];
   onNavigate: (viewId: string) => void;
   onGenerateInitial: () => void;
   onRunOptimization: () => void;
@@ -59,13 +61,13 @@ interface DashboardPageProps {
 export const DashboardPage: React.FC<DashboardPageProps> = ({
   courses,
   lecturers,
-  students = [],
-  classes,
   rooms,
   timeslots,
   currentSchedule,
   initialSchedule,
   activeOptimizationResult,
+  offerings = [],
+  packages = [],
   onNavigate,
   onGenerateInitial,
   onRunOptimization,
@@ -74,10 +76,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const isOptimized = Boolean(activeOptimizationResult);
   const hasSchedule = Boolean(currentSchedule && currentSchedule.length > 0);
 
+  const totalOfferings = offerings.length;
+  const scheduledCount = currentSchedule ? currentSchedule.length : 0;
+  const unscheduledCount = Math.max(0, totalOfferings - scheduledCount);
+
   const initialConflicts = activeOptimizationResult
     ? activeOptimizationResult.initialConflicts.total
     : hasSchedule && !isOptimized
-    ? 14 // Estimated default initial before full opt result
+    ? 14
     : 0;
 
   const currentConflicts = activeOptimizationResult
@@ -86,82 +92,90 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     ? initialConflicts
     : 0;
 
-  const conflictReduction =
-    activeOptimizationResult && activeOptimizationResult.initialConflicts.total > 0
-      ? (
-          ((activeOptimizationResult.initialConflicts.total -
-            activeOptimizationResult.bestConflicts.total) /
-            activeOptimizationResult.initialConflicts.total) *
-          100
-        ).toFixed(1)
-      : '0';
+  const hardConflictsCount = activeOptimizationResult
+    ? activeOptimizationResult.bestConflicts.hard
+    : 0;
 
-  const costReduction =
-    activeOptimizationResult && activeOptimizationResult.initialCost > 0
-      ? (
-          ((activeOptimizationResult.initialCost - activeOptimizationResult.bestCost) /
-            activeOptimizationResult.initialCost) *
-          100
-        ).toFixed(1)
-      : '0';
+  const conflictReduction = useMemo(() => {
+    if (!activeOptimizationResult) return '0';
+    const initialTotal = activeOptimizationResult.initialConflicts?.total ?? 0;
+    const bestTotal = activeOptimizationResult.bestConflicts?.total ?? 0;
+    if (initialTotal <= 0) return '0';
+    const reduction = ((initialTotal - bestTotal) / initialTotal) * 100;
+    return isNaN(reduction) ? '0' : Math.max(0, reduction).toFixed(1);
+  }, [activeOptimizationResult]);
+
+  const costReduction = useMemo(() => {
+    if (!activeOptimizationResult) return '0';
+    const initialCost = activeOptimizationResult.initialCost ?? 0;
+    const bestCost = activeOptimizationResult.bestCost ?? 0;
+    if (initialCost <= 0) return '0';
+    const reduction = ((initialCost - bestCost) / initialCost) * 100;
+    return isNaN(reduction) ? '0' : Math.max(0, reduction).toFixed(1);
+  }, [activeOptimizationResult]);
 
   const convergenceData = activeOptimizationResult?.convergenceHistory || [];
 
+  // Calculate room utilization
+  const usedRoomIds = new Set(currentSchedule?.map((a) => a.roomId) || []);
+  const activeRooms = rooms.filter((r) => r.isActive);
+  const roomUtilizationPct = activeRooms.length > 0 ? Math.round((usedRoomIds.size / activeRooms.length) * 100) : 0;
+
+  // Additional / manual courses count
+  const additionalCoursesCount = offerings.filter((o) => o.sourceType === 'manual' || o.offeringType === 'additional').length;
+
   return (
     <div className="space-y-6">
-      {/* Research Title Card */}
+      {/* Banner Card */}
       <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 rounded-2xl p-6 text-white shadow-sm relative overflow-hidden">
         <div className="relative z-10 max-w-4xl space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-white/10 text-indigo-200 text-xs font-semibold backdrop-blur-xs border border-white/10">
-            <GraduationCap className="w-3.5 h-3.5" />
-            <span>Prototype Penelitian Tugas Akhir S1 Teknik Elektro UNRAM</span>
+            <Building2 className="w-3.5 h-3.5" />
+            <span>Sistem Penjadwalan Perkuliahan Teknik Elektro — Univ. Mataram</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white leading-snug">
-            Sistem Pendukung Keputusan Penjadwalan Perkuliahan Menggunakan Algoritma Simulated Annealing
+            Sistem Pendukung Keputusan Penjadwalan Berbasis Paket Kurikulum & Simulated Annealing
           </h2>
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed pt-1">
-            Sistem pengambil keputusan cerdas untuk menghasilkan alokasi jadwal mata kuliah, dosen, ruang kelas,
-            dan slot waktu yang optimal dengan meminimalkan bentrokan (hard constraints) serta memaksimalkan
-            preferensi pengajaran (soft constraints).
+            Penjadwalan tingkat jurusan berbasis Paket Semester & KBK, alokasi ruang kelas, kapasitas proyeksi peserta, ketersediaan dosen, dan optimasi Simulated Annealing tanpa ketergantungan pada data KRS mahasiswa.
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-3">
+            <button
+              onClick={() => onNavigate('scheduling')}
+              id="btn-dash-open-unified"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-indigo-950 hover:bg-slate-100 text-xs font-bold shadow-sm transition-all"
+            >
+              <Zap className="w-4 h-4 text-indigo-600 fill-indigo-600" />
+              <span>Alur Penjadwalan & Optimasi Terpadu</span>
+            </button>
             {!hasSchedule ? (
               <button
                 onClick={onGenerateInitial}
                 id="btn-dash-gen-initial"
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-indigo-950 hover:bg-slate-100 text-xs font-bold shadow-sm transition-all"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-sm transition-all"
               >
-                <Sparkles className="w-4 h-4 text-indigo-600" />
-                <span>1. Buat Jadwal Awal (Initial Schedule)</span>
+                <Sparkles className="w-4 h-4 text-indigo-200" />
+                <span>Quick Generate Jadwal</span>
               </button>
             ) : !isOptimized ? (
               <button
                 onClick={onRunOptimization}
                 id="btn-dash-run-opt"
                 disabled={isOptimizing}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-bold shadow-sm transition-all disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-bold shadow-sm transition-all disabled:opacity-50"
               >
                 <Zap className="w-4 h-4 fill-current" />
-                <span>{isOptimizing ? 'Sedang Mengoptimasi...' : '2. Jalankan Optimasi Simulated Annealing'}</span>
+                <span>{isOptimizing ? 'Sedang Mengoptimasi...' : 'Jalankan Optimasi SA'}</span>
               </button>
             ) : (
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => onNavigate('schedule')}
-                  id="btn-dash-view-schedule"
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold shadow-sm transition-all"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold shadow-sm transition-all"
                 >
                   <Calendar className="w-4 h-4" />
-                  <span>Lihat Jadwal Final (Timetable)</span>
-                </button>
-                <button
-                  onClick={() => onNavigate('reports')}
-                  id="btn-dash-view-report"
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold backdrop-blur-xs transition-all"
-                >
-                  <BarChart3 className="w-4 h-4" />
-                  <span>Lihat Laporan Penelitian</span>
+                  <span>Lihat Jadwal Terbit</span>
                 </button>
               </div>
             )}
@@ -169,262 +183,184 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
       </div>
 
-      {/* 6 Primary Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-1 cursor-pointer hover:border-indigo-300 transition-colors" onClick={() => onNavigate('courses')}>
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-semibold">Mata Kuliah</span>
-            <BookOpen className="w-4 h-4 text-indigo-500" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">{courses.length}</div>
-          <p className="text-[10px] text-slate-500">{courses.reduce((acc, c) => acc + c.sks, 0)} Total SKS</p>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-1 cursor-pointer hover:border-indigo-300 transition-colors" onClick={() => onNavigate('lecturers')}>
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-semibold">Dosen</span>
-            <Users className="w-4 h-4 text-blue-500" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">{lecturers.length}</div>
-          <p className="text-[10px] text-slate-500">{lecturers.filter(l => l.isActive).length} Dosen Aktif</p>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-1 cursor-pointer hover:border-indigo-300 transition-colors" onClick={() => onNavigate('students')}>
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-semibold">Mahasiswa</span>
-            <GraduationCap className="w-4 h-4 text-emerald-500" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">{students.length > 0 ? students.length : 165}</div>
-          <p className="text-[10px] text-slate-500">Data Master Riil</p>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-1 cursor-pointer hover:border-indigo-300 transition-colors" onClick={() => onNavigate('rooms')}>
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-semibold">Ruangan</span>
-            <DoorOpen className="w-4 h-4 text-amber-500" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">{rooms.length}</div>
-          <p className="text-[10px] text-slate-500">{rooms.filter(r => r.type === 'Laboratorium').length} Lab Terpadu</p>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-1">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-semibold">Konflik Awal</span>
-            <AlertTriangle className="w-4 h-4 text-rose-500" />
-          </div>
-          <div className="text-2xl font-bold text-rose-600">
-            {hasSchedule ? initialConflicts : '-'}
-          </div>
-          <p className="text-[10px] text-slate-500">
-            {activeOptimizationResult ? `Cost: ${activeOptimizationResult.initialCost}` : 'Sebelum SA'}
-          </p>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-1">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-semibold">Konflik Akhir</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-          </div>
-          <div className="text-2xl font-bold text-emerald-600">
-            {isOptimized ? activeOptimizationResult?.bestConflicts.total : '-'}
-          </div>
-          <p className="text-[10px] text-slate-500">
-            {isOptimized ? `Cost: ${activeOptimizationResult?.bestCost}` : 'Setelah SA'}
-          </p>
-        </div>
-      </div>
-
-      {/* Comparison & Status Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: System Status Card */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs flex flex-col justify-between space-y-4">
-          <div>
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-900">Status Sistem SPK</h3>
-              <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse"></span>
-            </div>
-            <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
-              <div className="text-xs font-medium text-slate-500">Status Operasional Saat Ini:</div>
-              <div className="text-base font-bold text-slate-900 mt-1">
-                {isOptimized
-                  ? 'Optimasi Selesai (Best Solution Found)'
-                  : hasSchedule
-                  ? 'Draft Jadwal Awal Tersedia (Perlu Optimasi)'
-                  : 'Belum Dilakukan Optimasi'}
-              </div>
-              <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                {isOptimized
-                  ? `Simulated Annealing berhasil menyelesaikan ${activeOptimizationResult?.totalIterationsCompleted} iterasi dalam ${activeOptimizationResult?.executionTimeMs} ms.`
-                  : hasSchedule
-                  ? 'Jadwal awal telah dibangkitkan dengan beberapa potensi konflik jadwal dosen, ruang, dan kelas.'
-                  : 'Silakan mulai dengan menekan tombol "Generate Jadwal Awal" atau masuk ke menu Optimasi.'}
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <button
-              onClick={() => onNavigate(hasSchedule ? 'conflicts' : 'optimization')}
-              className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors"
-            >
-              <span>{hasSchedule ? 'Buka Analisis Konflik Detail' : 'Buka Menu Optimasi SA'}</span>
-              <ArrowRight className="w-4 h-4 text-slate-400" />
-            </button>
-          </div>
-        </div>
-
-        {/* Middle & Right: Perbandingan Konflik Before vs After */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-4">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Course Offerings */}
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Perbandingan Kondisi Jadwal</h3>
-              <p className="text-xs text-slate-500">Evaluasi efektivitas algoritma Simulated Annealing</p>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Course Offerings</span>
+            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700">
+              <Layers className="w-4 h-4" />
             </div>
-            {isOptimized && (
-              <Badge variant="success" size="sm">
-                <TrendingDown className="w-3.5 h-3.5" />
-                Pengurangan Konflik: {conflictReduction}%
-              </Badge>
-            )}
           </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl sm:text-3xl font-bold text-slate-900">{totalOfferings || courses.length}</span>
+            <span className="text-xs text-slate-500 font-medium">kelas mata kuliah</span>
+          </div>
+          <div className="mt-2 flex items-center justify-between text-xs text-slate-500 border-t border-slate-100 pt-2 font-medium">
+            <span>Terjadwal: <strong className="text-indigo-700">{scheduledCount}</strong></span>
+            {unscheduledCount > 0 && <span className="text-rose-600 font-bold">{unscheduledCount} Belum</span>}
+          </div>
+        </div>
 
-          {activeOptimizationResult ? (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
-              {/* Before */}
-              <div className="p-4 rounded-xl bg-rose-50/70 border border-rose-100 space-y-2">
-                <div className="text-[11px] font-bold text-rose-700 uppercase tracking-wider">
-                  Initial Schedule
-                </div>
-                <div className="text-2xl font-extrabold text-rose-900">
-                  {activeOptimizationResult.initialConflicts.total} <span className="text-xs font-medium text-rose-700">konflik</span>
-                </div>
-                <div className="text-xs text-rose-800 space-y-1">
-                  <div>• Hard: {activeOptimizationResult.initialConflicts.hard} bentrokan</div>
-                  <div>• Soft: {activeOptimizationResult.initialConflicts.soft} preferensi</div>
-                  <div>• Cost Value: <span className="font-mono font-bold">{activeOptimizationResult.initialCost}</span></div>
-                </div>
-              </div>
-
-              {/* After */}
-              <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-100 space-y-2">
-                <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">
-                  Optimized Schedule
-                </div>
-                <div className="text-2xl font-extrabold text-emerald-900">
-                  {activeOptimizationResult.bestConflicts.total} <span className="text-xs font-medium text-emerald-700">konflik</span>
-                </div>
-                <div className="text-xs text-emerald-800 space-y-1">
-                  <div>• Hard: {activeOptimizationResult.bestConflicts.hard} bentrokan</div>
-                  <div>• Soft: {activeOptimizationResult.bestConflicts.soft} preferensi</div>
-                  <div>• Cost Value: <span className="font-mono font-bold">{activeOptimizationResult.bestCost}</span></div>
-                </div>
-              </div>
-
-              {/* Improvement Metric */}
-              <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-100 space-y-2">
-                <div className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider">
-                  Efisiensi & Reduksi
-                </div>
-                <div className="text-2xl font-extrabold text-indigo-900">
-                  {conflictReduction}% <span className="text-xs font-medium text-indigo-700">reduksi</span>
-                </div>
-                <div className="text-xs text-indigo-800 space-y-1">
-                  <div>• Penurunan Cost: <span className="font-bold">{costReduction}%</span></div>
-                  <div>• Iterasi Terbaik: <span className="font-mono font-bold">ke-{activeOptimizationResult.bestIteration}</span></div>
-                  <div>• Waktu Komputasi: <span className="font-mono font-bold">{activeOptimizationResult.executionTimeMs} ms</span></div>
-                </div>
-              </div>
+        {/* Card 2: Hard Conflicts */}
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Hard Conflict</span>
+            <div className={`p-2 rounded-xl ${hardConflictsCount === 0 && isOptimized ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+              {hardConflictsCount === 0 && isOptimized ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
             </div>
-          ) : (
-            <div className="py-8 px-4 text-center rounded-xl bg-slate-50 border border-dashed border-slate-200">
-              <Activity className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              <p className="text-xs font-semibold text-slate-700">Belum ada data perbandingan optimasi</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Jalankan Simulated Annealing pada halaman Optimasi untuk melihat perbandingan kuantitatif secara otomatis.
-              </p>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className={`text-2xl sm:text-3xl font-bold ${hardConflictsCount === 0 && isOptimized ? 'text-emerald-600' : hardConflictsCount > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
+              {hardConflictsCount}
+            </span>
+            <span className="text-xs text-slate-500 font-medium">bentrokan fatal</span>
+          </div>
+          <div className="mt-2 text-xs text-slate-500 border-t border-slate-100 pt-2 flex items-center justify-between font-medium">
+            <span>Total Konflik: <strong>{currentConflicts}</strong></span>
+            {isOptimized && <span className="text-emerald-600 font-bold">Turun {conflictReduction}%</span>}
+          </div>
+        </div>
+
+        {/* Card 3: Ruangan Terpakai */}
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Penggunaan Ruangan</span>
+            <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
+              <DoorOpen className="w-4 h-4" />
             </div>
-          )}
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl sm:text-3xl font-bold text-slate-900">{usedRoomIds.size} / {activeRooms.length}</span>
+            <span className="text-xs text-slate-500 font-medium">ruang aktif</span>
+          </div>
+          <div className="mt-2 text-xs text-slate-500 border-t border-slate-100 pt-2 flex items-center justify-between font-medium">
+            <span>Utilitas: <strong>{roomUtilizationPct}%</strong></span>
+            <span>Total Sesi: <strong>{timeslots.length}</strong></span>
+          </div>
+        </div>
+
+        {/* Card 4: Dosen & Beban */}
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Dosen Pengampu</span>
+            <div className="p-2 rounded-xl bg-purple-50 text-purple-700">
+              <Users className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl sm:text-3xl font-bold text-slate-900">{lecturers.length}</span>
+            <span className="text-xs text-slate-500 font-medium">dosen terdaftar</span>
+          </div>
+          <div className="mt-2 text-xs text-slate-500 border-t border-slate-100 pt-2 flex items-center justify-between font-medium">
+            <span>Tambahan Jurusan: <strong>{additionalCoursesCount} MK</strong></span>
+            <span className="text-indigo-600 font-semibold cursor-pointer" onClick={() => onNavigate('report-lecturer-load')}>Rekap Beban →</span>
+          </div>
         </div>
       </div>
 
-      {/* Fitness / Cost Convergence Chart */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">Perubahan Nilai Fitness & Cost (Konvergensi SA)</h3>
-            <p className="text-xs text-slate-500">
-              Grafik trajektori penurunan cost function terhadap iterasi Simulated Annealing
-            </p>
+      {/* SA Optimization Result Highlights */}
+      {activeOptimizationResult && (
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                <Zap className="w-4 h-4 text-indigo-600" />
+                <span>Hasil Optimasi Simulated Annealing Terakhir</span>
+              </h3>
+              <p className="text-xs text-slate-500">
+                Waktu komputasi: <strong>{activeOptimizationResult.executionTimeMs} ms</strong> • Iterasi: <strong>{(activeOptimizationResult.totalIterationsCompleted ?? (activeOptimizationResult as any).iterationsCompleted ?? 0).toLocaleString()}</strong>
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant={activeOptimizationResult.bestCost === 0 ? 'success' : 'indigo'}>
+                Penalty Cost: {activeOptimizationResult.bestCost.toLocaleString()} (Awal: {activeOptimizationResult.initialCost.toLocaleString()})
+              </Badge>
+              <button
+                onClick={() => onNavigate('optimization')}
+                className="text-xs font-bold text-indigo-700 hover:text-indigo-900 underline flex items-center gap-1"
+              >
+                <span>Detail Algoritma</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
           </div>
-          {activeOptimizationResult && (
-            <div className="flex items-center gap-4 text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-0.5 bg-rose-400 rounded-full"></span>
-                <span className="text-slate-600">Current Cost</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-1 bg-indigo-600 rounded-full"></span>
-                <span className="font-bold text-indigo-700">Best Cost (Global Best)</span>
-              </div>
+
+          {/* Convergence Chart */}
+          {convergenceData.length > 0 && (
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={convergenceData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="iteration" tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                  <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                  <Tooltip
+                    contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px' }}
+                    formatter={(val: any) => [val, 'Cost Penalti']}
+                    labelFormatter={(iter) => `Iterasi ke-${iter}`}
+                  />
+                  <Area type="monotone" dataKey="currentCost" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#costGradient)" name="Cost Fungsi Objektif" />
+                  <Line type="monotone" dataKey="bestCost" stroke="#10b981" strokeWidth={2} dot={false} name="Best Cost" />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           )}
         </div>
+      )}
 
-        {convergenceData.length > 0 ? (
-          <div className="h-72 w-full pt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={convergenceData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis
-                  dataKey="iteration"
-                  stroke="#94a3b8"
-                  fontSize={11}
-                  tickFormatter={val => `Iter ${val}`}
-                />
-                <YAxis stroke="#94a3b8" fontSize={11} domain={['auto', 'auto']} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#ffffff',
-                    borderColor: '#e2e8f0',
-                    borderRadius: '0.75rem',
-                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                    fontSize: '12px',
-                  }}
-                  formatter={(value: any, name: string) => [
-                    value,
-                    name === 'bestCost' ? 'Solusi Terbaik' : name === 'currentCost' ? 'Solusi Berjalan' : name,
-                  ]}
-                  labelFormatter={label => `Iterasi ke-${label}`}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="currentCost"
-                  stroke="#f43f5e"
-                  strokeWidth={1}
-                  dot={false}
-                  name="Current Cost"
-                  opacity={0.6}
-                />
-                <Line
-                  type="stepAfter"
-                  dataKey="bestCost"
-                  stroke="#4f46e5"
-                  strokeWidth={2.5}
-                  dot={false}
-                  name="Best Cost"
-                />
-              </LineChart>
-            </ResponsiveContainer>
+      {/* Quick Navigation Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div
+          onClick={() => onNavigate('packages')}
+          className="bg-white p-4 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+              <BookOpen className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-slate-900">Kurikulum & Paket Semester</h4>
+              <p className="text-xs text-slate-500">Master Kurikulum 2026/2022, 3 KBK, Paket 1-8</p>
+            </div>
           </div>
-        ) : (
-          <div className="h-56 flex flex-col items-center justify-center rounded-xl bg-slate-50 border border-dashed border-slate-200 text-center p-4">
-            <BarChart3 className="w-8 h-8 text-slate-300 mb-2" />
-            <p className="text-xs font-semibold text-slate-700">Grafik Konvergensi Belum Tersedia</p>
-            <p className="text-[11px] text-slate-500 max-w-sm mt-1">
-              Data iterasi dan penurunan cost akan terekam secara realtime saat algoritma Simulated Annealing dieksekusi.
-            </p>
+        </div>
+
+        <div
+          onClick={() => onNavigate('offerings')}
+          className="bg-white p-4 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+              <Layers className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-slate-900">Course Offerings (Kelas MK)</h4>
+              <p className="text-xs text-slate-500">Kelola offering, Section A/B, & MK Tambahan</p>
+            </div>
           </div>
-        )}
+        </div>
+
+        <div
+          onClick={() => onNavigate('settings')}
+          className="bg-white p-4 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+              <Sliders className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-slate-900">Constraint & Bobot SA</h4>
+              <p className="text-xs text-slate-500">Konfigurasi bobot hard/soft & parameter SA</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

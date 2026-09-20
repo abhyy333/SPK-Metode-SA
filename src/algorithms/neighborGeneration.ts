@@ -11,10 +11,10 @@ export interface NeighborResult {
 /**
  * Generates a neighbor solution from current schedule.
  * Strategies:
- * 1. Move a course assignment to a new timeslot
- * 2. Move a course assignment to a new room
- * 3. Move both timeslot and room
- * 4. Swap timeslots between two assignments
+ * 1. Move a course assignment to a new timeslot (if timeslot not locked)
+ * 2. Move a course assignment to a new room (if room not locked)
+ * 3. Move both timeslot and room (respecting lock flags)
+ * 4. Swap timeslots between two unlocked assignments
  */
 export function generateNeighbor(
   currentAssignments: ScheduleAssignment[],
@@ -22,7 +22,8 @@ export function generateNeighbor(
   rooms: Room[],
   timeslots: Timeslot[],
   mutationRate: number = 0.2,
-  conflictAssignmentIds?: string[]
+  conflictAssignmentIds?: string[],
+  rng: () => number = Math.random
 ): NeighborResult {
   if (currentAssignments.length === 0) {
     return { neighbor: [], moveType: 'MOVE_TIMESLOT', modifiedCourseIds: [] };
@@ -37,65 +38,102 @@ export function generateNeighbor(
     return { neighbor, moveType: 'MOVE_TIMESLOT', modifiedCourseIds: [] };
   }
 
-  // Selection: 60% chance to target an assignment that is in conflict if list provided
+  // Helper to check if timeslot is locked
+  const isSlotLocked = (a: ScheduleAssignment) => {
+    if (a.isFixed) return true;
+    if (a.lockConfig?.full) return true;
+    if (a.lockConfig?.time || a.lockConfig?.lockTimeslot) return true;
+    if (a.isLocked && !a.lockConfig) return true;
+    return false;
+  };
+
+  // Helper to check if room is locked
+  const isRoomLockedFn = (a: ScheduleAssignment) => {
+    if (a.isFixed) return true;
+    if (a.lockConfig?.full) return true;
+    if (a.lockConfig?.room || a.lockConfig?.lockRoom) return true;
+    if (a.isLocked && !a.lockConfig) return true;
+    return false;
+  };
+
+  // Identify unlocked candidate indices (has at least timeslot or room movable)
+  const isFullyLocked = (a: ScheduleAssignment) => isSlotLocked(a) && isRoomLockedFn(a);
+
+  const unlockedIndices: number[] = [];
+  for (let idx = 0; idx < neighbor.length; idx++) {
+    if (!isFullyLocked(neighbor[idx])) {
+      unlockedIndices.push(idx);
+    }
+  }
+
+  // If all assignments are locked, return unchanged neighbor
+  if (unlockedIndices.length === 0) {
+    return { neighbor, moveType: 'MOVE_TIMESLOT', modifiedCourseIds: [] };
+  }
+
+  // Selection: 65% chance to target an assignment that is in conflict if list provided
   let targetIndex: number;
-  if (conflictAssignmentIds && conflictAssignmentIds.length > 0 && Math.random() < 0.65) {
-    const conflictedId = conflictAssignmentIds[Math.floor(Math.random() * conflictAssignmentIds.length)];
-    const foundIdx = neighbor.findIndex(a => a.id === conflictedId);
-    targetIndex = foundIdx !== -1 ? foundIdx : Math.floor(Math.random() * neighbor.length);
+  const conflictedUnlocked = conflictAssignmentIds && conflictAssignmentIds.length > 0
+    ? unlockedIndices.filter(idx => conflictAssignmentIds.includes(neighbor[idx].id))
+    : [];
+
+  if (conflictedUnlocked.length > 0 && rng() < 0.65) {
+    targetIndex = conflictedUnlocked[Math.floor(rng() * conflictedUnlocked.length)];
   } else {
-    targetIndex = Math.floor(Math.random() * neighbor.length);
+    targetIndex = unlockedIndices[Math.floor(rng() * unlockedIndices.length)];
   }
 
   const targetAssignment = neighbor[targetIndex];
   const targetCourse = courses.find(c => c.id === targetAssignment.courseId);
 
-  // Pick mutation operator based on random probability
-  const rand = Math.random();
-  let moveType: NeighborMoveType;
+  const isTimeslotLocked = isSlotLocked(targetAssignment);
+  const isRoomLocked = isRoomLockedFn(targetAssignment);
+
+  // Pick mutation operator based on random probability and lock constraints
+  const rand = rng();
+  let moveType: NeighborMoveType = 'MOVE_TIMESLOT';
   const modifiedCourseIds = [targetAssignment.courseId];
 
-  if (rand < 0.40) {
+  if (!isTimeslotLocked && (rand < 0.40 || isRoomLocked)) {
     // Strategy 1: Change Timeslot
     moveType = 'MOVE_TIMESLOT';
     const otherTimeslots = activeTimeslots.filter(t => t.id !== targetAssignment.timeslotId);
     if (otherTimeslots.length > 0) {
-      const newSlot = otherTimeslots[Math.floor(Math.random() * otherTimeslots.length)];
+      const newSlot = otherTimeslots[Math.floor(rng() * otherTimeslots.length)];
       neighbor[targetIndex] = {
         ...targetAssignment,
         timeslotId: newSlot.id,
       };
     }
-  } else if (rand < 0.65) {
+  } else if (!isRoomLocked && (rand < 0.65 || isTimeslotLocked)) {
     // Strategy 2: Change Room
     moveType = 'MOVE_ROOM';
     const otherRooms = activeRooms.filter(r => r.id !== targetAssignment.roomId);
     if (otherRooms.length > 0) {
-      // If course is practical, prefer labs
       let candidateRooms = otherRooms;
       if (targetCourse?.type === 'Praktikum') {
         const labs = otherRooms.filter(r => r.type === 'Laboratorium');
-        if (labs.length > 0 && Math.random() < 0.8) {
+        if (labs.length > 0 && rng() < 0.8) {
           candidateRooms = labs;
         }
       }
-      const newRoom = candidateRooms[Math.floor(Math.random() * candidateRooms.length)];
+      const newRoom = candidateRooms[Math.floor(rng() * candidateRooms.length)];
       neighbor[targetIndex] = {
         ...targetAssignment,
         roomId: newRoom.id,
       };
     }
-  } else if (rand < 0.85) {
+  } else if (!isTimeslotLocked && !isRoomLocked && rand < 0.85) {
     // Strategy 3: Change both Room and Timeslot
     moveType = 'MOVE_BOTH';
     const otherTimeslots = activeTimeslots.filter(t => t.id !== targetAssignment.timeslotId);
     const otherRooms = activeRooms.filter(r => r.id !== targetAssignment.roomId);
 
     const newSlot = otherTimeslots.length > 0
-      ? otherTimeslots[Math.floor(Math.random() * otherTimeslots.length)]
+      ? otherTimeslots[Math.floor(rng() * otherTimeslots.length)]
       : activeTimeslots[0];
     const newRoom = otherRooms.length > 0
-      ? otherRooms[Math.floor(Math.random() * otherRooms.length)]
+      ? otherRooms[Math.floor(rng() * otherRooms.length)]
       : activeRooms[0];
 
     neighbor[targetIndex] = {
@@ -103,26 +141,28 @@ export function generateNeighbor(
       timeslotId: newSlot.id,
       roomId: newRoom.id,
     };
-  } else {
-    // Strategy 4: Swap timeslot with another assignment
+  } else if (!isTimeslotLocked) {
+    // Strategy 4: Swap timeslot with another assignment that also has unlocked timeslot
     moveType = 'SWAP_SLOTS';
-    let swapIndex = Math.floor(Math.random() * neighbor.length);
-    while (swapIndex === targetIndex && neighbor.length > 1) {
-      swapIndex = Math.floor(Math.random() * neighbor.length);
+    const otherUnlockedForSwap = unlockedIndices.filter(
+      idx => idx !== targetIndex && !isSlotLocked(neighbor[idx])
+    );
+
+    if (otherUnlockedForSwap.length > 0) {
+      const swapIndex = otherUnlockedForSwap[Math.floor(rng() * otherUnlockedForSwap.length)];
+      const otherAssignment = neighbor[swapIndex];
+      modifiedCourseIds.push(otherAssignment.courseId);
+
+      const tempSlot = targetAssignment.timeslotId;
+      neighbor[targetIndex] = {
+        ...targetAssignment,
+        timeslotId: otherAssignment.timeslotId,
+      };
+      neighbor[swapIndex] = {
+        ...otherAssignment,
+        timeslotId: tempSlot,
+      };
     }
-
-    const otherAssignment = neighbor[swapIndex];
-    modifiedCourseIds.push(otherAssignment.courseId);
-
-    const tempSlot = targetAssignment.timeslotId;
-    neighbor[targetIndex] = {
-      ...targetAssignment,
-      timeslotId: otherAssignment.timeslotId,
-    };
-    neighbor[swapIndex] = {
-      ...otherAssignment,
-      timeslotId: tempSlot,
-    };
   }
 
   return {

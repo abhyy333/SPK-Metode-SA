@@ -41,8 +41,9 @@ export const TimetableCell: React.FC<TimetableCellProps> = React.memo(({
             : 'bg-white border-slate-200 hover:border-indigo-300'
         }`}
       >
-        <div className="font-bold text-[11px]">{course?.code || assignment.courseId}</div>
-        <div className="text-[10px] text-slate-600 line-clamp-1">
+        <div className="font-bold text-[11px] text-slate-900 line-clamp-1 leading-tight">{course?.name || assignment.courseId}</div>
+        <div className="text-[10px] font-mono font-medium text-slate-500 mt-0.5">{course?.code || ''}</div>
+        <div className="text-[10px] text-slate-600 line-clamp-1 mt-1">
           {cls?.code || assignment.classId} • {lecturer?.name || 'Belum Ada Dosen'}
         </div>
       </div>

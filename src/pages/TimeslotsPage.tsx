@@ -10,14 +10,19 @@ import {
   RotateCcw,
   AlertTriangle,
   Calendar,
-  Filter,
-  Check,
+  Sparkles,
 } from 'lucide-react';
 import { Timeslot, DayOfWeek, ScheduleAssignment, RolePermissions } from '../types';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { DeleteConfirmModal } from '../components/ui/DeleteConfirmModal';
 import { useToast } from '../components/ui/Toast';
+import {
+  ALL_DAYS,
+  calculateSessionDuration,
+  getOverlappingSessions,
+  getSessionShortLabel,
+} from '../utils/sessionUtils';
 
 interface TimeslotsPageProps {
   timeslots: Timeslot[];
@@ -28,8 +33,6 @@ interface TimeslotsPageProps {
   onToggleTimeslot: (id: string) => void;
   onResetDefaultTimeslots: () => void;
 }
-
-const ALL_DAYS: DayOfWeek[] = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
 export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
   timeslots,
@@ -55,74 +58,34 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
     day: DayOfWeek;
     startTime: string;
     endTime: string;
-    slotIndex: number;
     isActive: boolean;
   }>({
     id: '',
     day: 'Senin',
     startTime: '07:30',
     endTime: '09:10',
-    slotIndex: 1,
     isActive: true,
   });
 
-  // Calculate Duration in Minutes from "HH:mm"
-  const calculateDuration = (start: string, end: string): number => {
-    if (!start || !end) return 0;
-    const [startH, startM] = start.split(':').map(Number);
-    const [endH, endM] = end.split(':').map(Number);
-    if (isNaN(startH) || isNaN(startM) || isNaN(endH) || isNaN(endM)) return 0;
-    const startTotal = startH * 60 + startM;
-    const endTotal = endH * 60 + endM;
-    return Math.max(0, endTotal - startTotal);
-  };
-
-  const calculatedDuration = calculateDuration(formData.startTime, formData.endTime);
+  const calculatedDuration = calculateSessionDuration(formData.startTime, formData.endTime);
 
   // Check Overlap with existing timeslots on the same day
-  const getOverlappingSlots = (
-    day: DayOfWeek,
-    start: string,
-    end: string,
-    excludeId?: string
-  ): Timeslot[] => {
-    if (!start || !end) return [];
-    const [sH, sM] = start.split(':').map(Number);
-    const [eH, eM] = end.split(':').map(Number);
-    const newStart = sH * 60 + sM;
-    const newEnd = eH * 60 + eM;
-
-    return timeslots.filter(ts => {
-      if (ts.day !== day || ts.id === excludeId) return false;
-      const [tsSH, tsSM] = ts.startTime.split(':').map(Number);
-      const [tsEH, tsEM] = ts.endTime.split(':').map(Number);
-      const tsStart = tsSH * 60 + tsSM;
-      const tsEnd = tsEH * 60 + tsEM;
-
-      // Overlap condition: start < otherEnd AND end > otherStart
-      return newStart < tsEnd && newEnd > tsStart;
-    });
-  };
-
-  const overlappingSlots = getOverlappingSlots(
+  const overlappingSessions = getOverlappingSessions(
     formData.day,
     formData.startTime,
     formData.endTime,
+    timeslots,
     editingTimeslot?.id
   );
 
   // Handlers
   const handleOpenAdd = (defaultDay: DayOfWeek = 'Senin') => {
-    const daySlots = timeslots.filter(t => t.day === defaultDay);
-    const nextIndex = daySlots.length > 0 ? Math.max(...daySlots.map(s => s.slotIndex)) + 1 : 1;
-
     setEditingTimeslot(null);
     setFormData({
       id: `ts-${(defaultDay || 'senin').toLowerCase()}-${Date.now()}`,
       day: defaultDay,
       startTime: '07:30',
       endTime: '09:10',
-      slotIndex: nextIndex,
       isActive: true,
     });
     setIsModalOpen(true);
@@ -135,38 +98,33 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
       day: ts.day,
       startTime: ts.startTime,
       endTime: ts.endTime,
-      slotIndex: ts.slotIndex,
       isActive: ts.isActive,
     });
     setIsModalOpen(true);
   };
 
   const handleDuplicate = (ts: Timeslot) => {
-    const daySlots = timeslots.filter(t => t.day === ts.day);
-    const nextIndex = Math.max(...daySlots.map(s => s.slotIndex)) + 1;
-
     const duplicated: Timeslot = {
       ...ts,
       id: `ts-${(ts.day || 'senin').toLowerCase()}-${Date.now()}`,
-      slotIndex: nextIndex,
       label: `${ts.startTime} - ${ts.endTime}`,
     };
 
     onSaveTimeslot(duplicated);
-    showToast('success', 'Slot Waktu Diduplikasi', `Slot ${ts.day} ${ts.label} berhasil digandakan.`);
+    showToast('success', 'Sesi Waktu Diduplikasi', `Sesi ${ts.day} ${ts.label} berhasil digandakan.`);
   };
 
   const handleConfirmDelete = () => {
     if (!deleteTarget) return;
     onDeleteTimeslot(deleteTarget.id);
-    showToast('info', 'Slot Waktu Dihapus', `Slot ${deleteTarget.day} (${deleteTarget.label}) telah dihapus.`);
+    showToast('info', 'Sesi Waktu Dihapus', `Sesi ${deleteTarget.day} (${deleteTarget.label}) telah dihapus.`);
     setDeleteTarget(null);
   };
 
   const handleConfirmDeactivate = () => {
     if (!deleteTarget) return;
     onToggleTimeslot(deleteTarget.id);
-    showToast('info', 'Slot Waktu Dinonaktifkan', `Slot ${deleteTarget.day} (${deleteTarget.label}) telah dinonaktifkan.`);
+    showToast('info', 'Sesi Waktu Dinonaktifkan', `Sesi ${deleteTarget.day} (${deleteTarget.label}) telah dinonaktifkan.`);
     setDeleteTarget(null);
   };
 
@@ -184,7 +142,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
       day: formData.day,
       startTime: formData.startTime,
       endTime: formData.endTime,
-      slotIndex: Number(formData.slotIndex) || 1,
+      slotIndex: 1, // Will be auto-indexed on save
       durationMinutes: calculatedDuration,
       isActive: formData.isActive,
       label,
@@ -195,8 +153,8 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
 
     showToast(
       'success',
-      editingTimeslot ? 'Slot Waktu Diperbarui' : 'Slot Waktu Ditambahkan',
-      `${formData.day} ${label} (${calculatedDuration} Menit) siap digunakan.`
+      editingTimeslot ? 'Sesi Waktu Diperbarui' : 'Sesi Waktu Ditambahkan',
+      `${formData.day} ${formData.startTime} - ${formData.endTime} (${calculatedDuration} Menit) siap digunakan.`
     );
   };
 
@@ -225,13 +183,13 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-slate-900">Manajemen Slot Waktu Perkuliahan</h2>
+            <h2 className="text-lg font-bold text-slate-900">Manajemen Sesi Waktu Perkuliahan</h2>
             <Badge variant="indigo" size="sm">
-              {totalActiveSlots} / {timeslots.length} Slot Aktif
+              {totalActiveSlots} / {timeslots.length} Sesi Aktif
             </Badge>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Kelola matriks jadwal harian (tambah, edit, sesuaikan jam mulai/selesai, dan aktifkan hari perkuliahan)
+            Kelola matriks sesi harian (tambah, edit jam mulai/selesai, dan urutan sesi dihitung otomatis per hari)
           </p>
         </div>
 
@@ -240,9 +198,9 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
             <button
               type="button"
               onClick={() => {
-                if (window.confirm('Kembalikan matriks slot waktu ke template standar Teknik Elektro UNRAM?')) {
+                if (window.confirm('Kembalikan matriks sesi waktu ke template standar Teknik Elektro UNRAM?')) {
                   onResetDefaultTimeslots();
-                  showToast('info', 'Slot Waktu Direset', 'Matriks slot waktu telah dikembalikan ke template awal.');
+                  showToast('info', 'Sesi Waktu Direset', 'Matriks sesi waktu telah dikembalikan ke template awal.');
                 }
               }}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors"
@@ -259,7 +217,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors"
             >
               <Plus className="w-4 h-4" />
-              <span>Tambah Slot Waktu</span>
+              <span>Tambah Sesi Waktu</span>
             </button>
           )}
         </div>
@@ -302,7 +260,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
         </div>
 
         <div className="text-xs text-slate-500 font-medium">
-          Klik tombol status untuk mengaktifkan/menonaktifkan slot
+          Klik tombol status untuk mengaktifkan/menonaktifkan sesi
         </div>
       </div>
 
@@ -334,7 +292,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
                     <button
                       onClick={() => handleOpenAdd(day)}
                       className="p-1 rounded-lg hover:bg-white text-slate-500 hover:text-indigo-600 transition-colors"
-                      title={`Tambah slot di hari ${day}`}
+                      title={`Tambah sesi di hari ${day}`}
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
@@ -347,13 +305,13 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
                 {daySlots.length === 0 ? (
                   <div className="py-8 text-center text-slate-400 space-y-2">
                     <Clock className="w-6 h-6 mx-auto text-slate-300" />
-                    <p className="text-xs font-medium">Belum ada slot untuk {day}</p>
+                    <p className="text-xs font-medium">Belum ada sesi untuk {day}</p>
                     {permissions.canCreate && (
                       <button
                         onClick={() => handleOpenAdd(day)}
                         className="text-[11px] font-bold text-indigo-600 hover:underline"
                       >
-                        + Tambah Slot Baru
+                        + Tambah Sesi Baru
                       </button>
                     )}
                   </div>
@@ -376,11 +334,13 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
                               }`}
                             />
                             <span className="text-xs font-bold text-slate-900 font-mono">
-                              {ts.label}
+                              {ts.startTime} - {ts.endTime}
                             </span>
                           </div>
                           <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-2">
-                            <span className="font-semibold">Slot #{ts.slotIndex}</span>
+                            <span className="font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
+                              {getSessionShortLabel(ts)}
+                            </span>
                             <span>•</span>
                             <span>{ts.durationMinutes} Menit</span>
                           </div>
@@ -393,8 +353,8 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
                               onToggleTimeslot(ts.id);
                               showToast(
                                 'info',
-                                ts.isActive ? 'Slot Dinonaktifkan' : 'Slot Diaktifkan',
-                                `${ts.day} ${ts.label} ${ts.isActive ? 'dinonaktifkan' : 'diaktifkan'}.`
+                                ts.isActive ? 'Sesi Dinonaktifkan' : 'Sesi Diaktifkan',
+                                `${ts.day} ${getSessionShortLabel(ts)} (${ts.startTime} - ${ts.endTime}) ${ts.isActive ? 'dinonaktifkan' : 'diaktifkan'}.`
                               );
                             }}
                             className={`p-1.5 rounded-lg text-xs font-medium transition-colors ${
@@ -402,7 +362,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
                                 ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
                                 : 'text-slate-400 bg-slate-100 hover:bg-slate-200'
                             }`}
-                            title={ts.isActive ? 'Klik untuk nonaktifkan' : 'Klik untuk aktifkan'}
+                            title={ts.isActive ? 'Klik untuk nonaktifkan sesi' : 'Klik untuk aktifkan sesi'}
                           >
                             {ts.isActive ? (
                               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -419,7 +379,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
                           <button
                             onClick={() => handleDuplicate(ts)}
                             className="p-1 rounded-md hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                            title="Duplikasi Slot"
+                            title="Duplikasi Sesi"
                           >
                             <Copy className="w-3.5 h-3.5" />
                           </button>
@@ -428,7 +388,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
                           <button
                             onClick={() => handleOpenEdit(ts)}
                             className="p-1 rounded-md hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                            title="Edit Slot"
+                            title="Edit Sesi"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
@@ -437,7 +397,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
                           <button
                             onClick={() => setDeleteTarget(ts)}
                             className="p-1 rounded-md hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                            title="Hapus Slot"
+                            title="Hapus Sesi"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -458,13 +418,13 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
         onClose={() => setDeleteTarget(null)}
         onConfirmDelete={handleConfirmDelete}
         onConfirmDeactivate={handleConfirmDeactivate}
-        title="Hapus Slot Waktu Perkuliahan"
-        itemName={deleteTarget ? `${deleteTarget.day} (${deleteTarget.label})` : ''}
-        itemType="Slot Waktu"
+        title="Hapus Sesi Waktu Perkuliahan"
+        itemName={deleteTarget ? `${deleteTarget.day} (${getSessionShortLabel(deleteTarget)}: ${deleteTarget.startTime} - ${deleteTarget.endTime})` : ''}
+        itemType="Sesi Waktu"
         isUsed={scheduledTimeslots.length > 0}
         usedDetails={
           scheduledTimeslots.length > 0
-            ? [`Slot waktu ini saat ini teralokasi pada ${scheduledTimeslots.length} jadwal perkuliahan.`]
+            ? [`Sesi waktu ini saat ini teralokasi pada ${scheduledTimeslots.length} jadwal perkuliahan.`]
             : []
         }
       />
@@ -473,7 +433,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingTimeslot ? 'Edit Slot Waktu' : 'Tambah Slot Waktu Baru'}
+        title={editingTimeslot ? 'Edit Sesi Waktu' : 'Tambah Sesi Waktu Baru'}
         size="md"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -523,7 +483,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+          <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100 items-center">
             <div>
               <span className="text-[11px] font-semibold text-slate-500">Durasi Terhitung:</span>
               <div className="text-sm font-bold text-slate-900 mt-0.5">
@@ -535,32 +495,25 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
               </div>
             </div>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">
-                Urutan Slot (Index)
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={15}
-                value={formData.slotIndex}
-                onChange={e => setFormData({ ...formData, slotIndex: Number(e.target.value) })}
-                className="w-full px-2.5 py-1 text-xs font-mono rounded-lg border border-slate-200 bg-white"
-              />
+            <div className="flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50/80 px-2.5 py-2 rounded-lg border border-indigo-100">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+              <span className="text-[11px] font-medium leading-tight">
+                Nomor Sesi diurutkan otomatis dari jam mulai
+              </span>
             </div>
           </div>
 
           {/* Overlap Warning Banner */}
-          {overlappingSlots.length > 0 && (
+          {overlappingSessions.length > 0 && (
             <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-1">
               <div className="flex items-center gap-1.5 text-xs font-bold">
                 <AlertTriangle className="w-4 h-4 text-amber-600" />
-                <span>Peringatan Tumpang Tindih Slot</span>
+                <span>Peringatan Tumpang Tindih Sesi</span>
               </div>
               <p className="text-[11px] text-amber-800 leading-relaxed">
-                Slot waktu ini bertumpang tindih dengan{' '}
+                Rentang waktu bertumpang tindih dengan sesi lain:{' '}
                 <span className="font-bold">
-                  {overlappingSlots.map(s => `${s.day} ${s.label}`).join(', ')}
+                  {overlappingSessions.map(s => `${s.day} ${getSessionShortLabel(s)} (${s.startTime} - ${s.endTime})`).join(', ')}
                 </span>
                 . Anda tetap dapat menyimpan jika ini disengaja untuk skenario khusus.
               </p>
@@ -576,7 +529,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
               className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
             />
             <label htmlFor="isActiveSlot" className="text-xs font-semibold text-slate-800 cursor-pointer">
-              Aktifkan slot ini dalam optimasi penjadwalan
+              Aktifkan sesi ini dalam optimasi penjadwalan
             </label>
           </div>
 
@@ -592,7 +545,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
               type="submit"
               className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs transition-colors"
             >
-              {editingTimeslot ? 'Simpan Perubahan' : 'Tambah Slot'}
+              {editingTimeslot ? 'Simpan Perubahan' : 'Tambah Sesi'}
             </button>
           </div>
         </form>
@@ -600,4 +553,3 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
     </div>
   );
 };
-

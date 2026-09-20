@@ -68,8 +68,7 @@ export const CurriculumPage: React.FC = () => {
         const term = searchTerm.toLowerCase();
         const matchCode = c.code.toLowerCase().includes(term);
         const matchName = c.name.toLowerCase().includes(term);
-        const matchLecturer = c.lecturerName?.toLowerCase().includes(term);
-        if (!matchCode && !matchName && !matchLecturer) return false;
+        if (!matchCode && !matchName) return false;
       }
 
       // Semester
@@ -87,8 +86,9 @@ export const CurriculumPage: React.FC = () => {
 
       // KBK
       if (selectedKbk !== 'all') {
-        if (selectedKbk === 'none' && c.kbkId) return false;
-        if (selectedKbk !== 'none' && c.kbkId !== selectedKbk) return false;
+        const cKbk = c.kbkIds?.[0] || (c as any).kbkId;
+        if (selectedKbk === 'none' && cKbk) return false;
+        if (selectedKbk !== 'none' && cKbk !== selectedKbk && !c.kbkIds?.includes(selectedKbk)) return false;
       }
 
       return true;
@@ -232,7 +232,7 @@ export const CurriculumPage: React.FC = () => {
       {/* KBK Badges Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {kbks.map((kbk) => {
-          const kbkCourses = courses.filter((c) => c.kbkId === kbk.id);
+          const kbkCourses = courses.filter((c) => c.kbkIds?.includes(kbk.id) || (c as any).kbkId === kbk.id);
           const isSelected = selectedKbk === kbk.id;
 
           return (
@@ -375,7 +375,7 @@ export const CurriculumPage: React.FC = () => {
                 filteredCourses.map((course, idx) => {
                   const category = course.category || classifyCourseCategory(course.code);
                   const isWajib = category === 'Wajib';
-                  const kbk = kbks.find((k) => k.id === course.kbkId);
+                  const kbk = kbks.find((k) => course.kbkIds?.includes(k.id) || (course as any).kbkId === k.id);
 
                   return (
                     <tr
@@ -391,9 +391,6 @@ export const CurriculumPage: React.FC = () => {
                         <div className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
                           {course.name}
                         </div>
-                        {course.description && (
-                          <div className="text-xs text-slate-500 line-clamp-1 mt-0.5">{course.description}</div>
-                        )}
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-800 text-xs font-bold">
@@ -489,17 +486,10 @@ export const CurriculumPage: React.FC = () => {
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                   <span className="text-xs text-slate-500 font-medium">Peminatan KBK:</span>
                   <p className="font-semibold text-slate-900 mt-0.5">
-                    {kbks.find((k) => k.id === selectedCourseDetail.kbkId)?.name || 'Semua Bidang (Mata Kuliah Dasar/Bersama)'}
+                    {kbks.find((k) => selectedCourseDetail.kbkIds?.includes(k.id) || (selectedCourseDetail as any).kbkId === k.id)?.name || 'Semua Bidang (Mata Kuliah Dasar/Bersama)'}
                   </p>
                 </div>
               </div>
-
-              {selectedCourseDetail.description && (
-                <div>
-                  <span className="text-xs text-slate-500 font-medium">Deskripsi Mata Kuliah:</span>
-                  <p className="text-slate-700 mt-1 leading-relaxed">{selectedCourseDetail.description}</p>
-                </div>
-              )}
 
               {selectedCourseDetail.prerequisites && selectedCourseDetail.prerequisites.length > 0 && (
                 <div>

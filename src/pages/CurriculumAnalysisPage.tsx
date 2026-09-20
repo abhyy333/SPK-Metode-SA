@@ -85,7 +85,7 @@ export const CurriculumAnalysisPage: React.FC = () => {
   const kbkPieData = [
     { name: 'KBK Komputer (KOM)', value: komCourses.length, color: '#8B5CF6' },
     { name: 'KBK Tenaga Listrik (STL)', value: stlCourses.length, color: '#F59E0B' },
-    { name: 'KBK Elektronika Komunikasi (ELKOM)', value: elkomCourses.length, color: '#0284C7' },
+    { name: 'KBK Elektronika Digital dan Telekomunikasi (ELKOM)', value: elkomCourses.length, color: '#0284C7' },
     { name: 'Lintas KBK (Cross-KBK)', value: crossKbkCourses.length, color: '#6366F1' },
     { name: 'Dasar / Paket Bersama', value: commonCourses.length, color: '#10B981' },
   ];

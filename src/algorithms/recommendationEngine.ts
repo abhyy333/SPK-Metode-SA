@@ -336,16 +336,20 @@ export function evaluateSwap(
     throw new Error('Salah satu penugasan jadwal tidak ditemukan.');
   }
 
-  const course1 = courses.find(c => c.id === a1.courseId)!;
-  const course2 = courses.find(c => c.id === a2.courseId)!;
-  const lecturer1 = lecturers.find(l => l.id === a1.lecturerId);
-  const lecturer2 = lecturers.find(l => l.id === a2.lecturerId);
-  const class1 = classes.find(cl => cl.id === a1.classId);
-  const class2 = classes.find(cl => cl.id === a2.classId);
-  const timeslot1 = timeslots.find(t => t.id === a1.timeslotId)!;
-  const timeslot2 = timeslots.find(t => t.id === a2.timeslotId)!;
-  const room1 = rooms.find(r => r.id === a1.roomId)!;
-  const room2 = rooms.find(r => r.id === a2.roomId)!;
+  const course1 = courses.find(c => c.id === a1.courseId || c.code === a1.courseId);
+  const course2 = courses.find(c => c.id === a2.courseId || c.code === a2.courseId);
+  const lecturer1 = a1.lecturerId ? lecturers.find(l => l.id === a1.lecturerId) : undefined;
+  const lecturer2 = a2.lecturerId ? lecturers.find(l => l.id === a2.lecturerId) : undefined;
+  const class1 = a1.classId ? classes.find(cl => cl.id === a1.classId) : undefined;
+  const class2 = a2.classId ? classes.find(cl => cl.id === a2.classId) : undefined;
+  const timeslot1 = timeslots.find(t => t.id === a1.timeslotId);
+  const timeslot2 = timeslots.find(t => t.id === a2.timeslotId);
+  const room1 = rooms.find(r => r.id === a1.roomId);
+  const room2 = rooms.find(r => r.id === a2.roomId);
+
+  if (!course1 || !course2 || !timeslot1 || !timeslot2 || !room1 || !room2) {
+    throw new Error('Penugasan jadwal tidak lengkap atau entitas relasi tidak ditemukan.');
+  }
 
   const baseEval = evaluateSchedule(
     currentSchedule,

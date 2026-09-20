@@ -187,7 +187,7 @@ export const RoomsPage: React.FC<RoomsPageProps> = ({
                     <p className="text-[11px] text-slate-500">{r.name}</p>
                   </div>
                 </div>
-                <Badge variant={r.type === 'Lab' ? 'warning' : 'primary'} size="sm">
+                <Badge variant={r.type === 'Laboratorium' ? 'warning' : 'primary'} size="sm">
                   {r.type}
                 </Badge>
               </div>

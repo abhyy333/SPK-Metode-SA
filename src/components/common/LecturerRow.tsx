@@ -25,7 +25,7 @@ export const LecturerRow: React.FC<LecturerRowProps> = React.memo(({
       </td>
       <td className="px-4 py-3.5">
         <div className="font-bold text-slate-900 text-xs">{lecturer.name}</div>
-        <div className="text-[11px] text-slate-500">{lecturer.email}</div>
+        <div className="text-[11px] text-slate-500 font-mono">Kode: {lecturer.code}</div>
       </td>
       <td className="px-4 py-3.5">
         <div className="flex flex-wrap gap-1">

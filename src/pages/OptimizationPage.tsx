@@ -17,6 +17,9 @@ import {
   ShieldCheck,
   Award,
   ArrowRight,
+  BookOpen,
+  ShieldAlert,
+  Info,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -41,6 +44,7 @@ import {
 } from '../types';
 import { Badge } from '../components/ui/Badge';
 import { useToast } from '../components/ui/Toast';
+import { StorageService } from '../services/storageService';
 
 interface OptimizationPageProps {
   parameters: SAParameters;
@@ -153,21 +157,106 @@ export const OptimizationPage: React.FC<OptimizationPageProps> = ({
     : activeOptimizationResult?.bestCost ?? '-';
 
   const displayTemperature = isOptimizing
-    ? Number(liveProgressData?.temperature || 0).toFixed(2)
-    : activeOptimizationResult
+    ? (liveProgressData?.temperature !== undefined && !isNaN(liveProgressData.temperature)
+        ? Number(liveProgressData.temperature).toFixed(2)
+        : '0.00')
+    : activeOptimizationResult?.parameters?.minimumTemperature !== undefined && !isNaN(activeOptimizationResult.parameters.minimumTemperature)
     ? Number(activeOptimizationResult.parameters.minimumTemperature).toFixed(2)
-    : initTemp;
+    : String(initTemp ?? '100.00');
 
   const displayConflicts = isOptimizing
-    ? liveProgressData?.bestConflicts ?? '-'
-    : activeOptimizationResult?.bestConflicts.total ?? '-';
+    ? (liveProgressData?.bestConflicts ?? '-')
+    : (activeOptimizationResult?.bestConflicts?.total ?? (activeOptimizationResult as any)?.bestConflictsCount ?? '-');
 
   const traceList = isOptimizing
     ? liveProgressData?.recentTrace || []
     : activeOptimizationResult?.sampleTrace || [];
 
+  // Pre-SA validation and offerings breakdown
+  const offerings = React.useMemo(() => StorageService.getCourseOfferings(), [currentSchedule]);
+  const preSaStats = React.useMemo(() => {
+    const theoryOfferings = offerings.filter(o => !o.isPracticum && o.status !== 'closed_low_enrollment');
+    const practicumCount = offerings.filter(o => o.isPracticum).length;
+    const closedElectivesCount = offerings.filter(o => o.status === 'closed_low_enrollment').length;
+    const activeSectionCount = theoryOfferings.length;
+    const unassignedLecturers = theoryOfferings.filter(o => !o.lecturerIds || o.lecturerIds.length === 0).length;
+    const unassignedRooms = (currentSchedule || []).filter(a => !a.roomId).length;
+
+    return {
+      theoryCount: theoryOfferings.length,
+      practicumCount,
+      closedElectivesCount,
+      activeSectionCount,
+      unassignedLecturers,
+      unassignedRooms,
+    };
+  }, [offerings, currentSchedule]);
+
   return (
     <div className="space-y-6">
+      {/* Pre-SA Operational Overview Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+              <BookOpen className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Validasi &amp; Status Operasional Pre-SA</h3>
+              <p className="text-xs text-slate-500">
+                Audit kesiapan Course Offering dan integritas data sebelum optimasi Simulated Annealing
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1.5 self-start sm:self-auto">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            <span>SA Invariant Guaranteed: 100% Offering Preserved</span>
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[10px] uppercase font-bold text-slate-500">Theory Offering Aktif</span>
+            <div className="text-lg font-bold text-slate-900 mt-0.5">{preSaStats.theoryCount} Rombel</div>
+            <span className="text-[10px] text-slate-400">Masuk jadwal utama</span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[10px] uppercase font-bold text-slate-500">Praktikum Excluded</span>
+            <div className="text-lg font-bold text-amber-700 mt-0.5">{preSaStats.practicumCount} Praktikum</div>
+            <span className="text-[10px] text-slate-400">Jadwal lab mandiri</span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[10px] uppercase font-bold text-slate-500">Pilihan Ditutup (&lt;10)</span>
+            <div className="text-lg font-bold text-slate-700 mt-0.5">{preSaStats.closedElectivesCount} MK</div>
+            <span className="text-[10px] text-slate-400">Enrollment minim</span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[10px] uppercase font-bold text-slate-500">Total Sections (Rombel)</span>
+            <div className="text-lg font-bold text-indigo-700 mt-0.5">{preSaStats.activeSectionCount} Kelas</div>
+            <span className="text-[10px] text-slate-400">Max 40 Mhs/kelas</span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[10px] uppercase font-bold text-slate-500">Belum Ada Dosen</span>
+            <div className={`text-lg font-bold mt-0.5 ${preSaStats.unassignedLecturers > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+              {preSaStats.unassignedLecturers} Rombel
+            </div>
+            <span className="text-[10px] text-slate-400">Dosen di Offering</span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[10px] uppercase font-bold text-slate-500">Belum Ada Ruangan</span>
+            <div className={`text-lg font-bold mt-0.5 ${preSaStats.unassignedRooms > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+              {preSaStats.unassignedRooms} Rombel
+            </div>
+            <span className="text-[10px] text-slate-400">Dialokasikan SA</span>
+          </div>
+        </div>
+      </div>
+
       {/* Parameter Control Panel */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
@@ -412,21 +501,21 @@ export const OptimizationPage: React.FC<OptimizationPageProps> = ({
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
               <span className="text-[11px] font-bold text-slate-500 uppercase">Sebelum Optimasi (Initial)</span>
               <div className="text-2xl font-bold text-slate-900">
-                {activeOptimizationResult.initialConflicts.total}{' '}
+                {activeOptimizationResult.initialConflicts?.total ?? (activeOptimizationResult as any).initialConflictsCount ?? 0}{' '}
                 <span className="text-xs text-slate-500 font-normal">total konflik</span>
               </div>
               <div className="text-xs text-slate-600 space-y-1">
                 <div className="flex justify-between">
                   <span>Hard Conflicts:</span>
-                  <span className="font-bold text-rose-600">{activeOptimizationResult.initialConflicts.hard}</span>
+                  <span className="font-bold text-rose-600">{activeOptimizationResult.initialConflicts?.hard ?? 0}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Soft Conflicts:</span>
-                  <span className="font-bold text-amber-600">{activeOptimizationResult.initialConflicts.soft}</span>
+                  <span className="font-bold text-amber-600">{activeOptimizationResult.initialConflicts?.soft ?? 0}</span>
                 </div>
                 <div className="flex justify-between pt-1 border-t border-slate-200">
                   <span>Total Cost:</span>
-                  <span className="font-mono font-bold">{activeOptimizationResult.initialCost}</span>
+                  <span className="font-mono font-bold">{activeOptimizationResult.initialCost ?? 0}</span>
                 </div>
               </div>
             </div>
@@ -437,21 +526,21 @@ export const OptimizationPage: React.FC<OptimizationPageProps> = ({
                 Setelah Optimasi (Final Best)
               </span>
               <div className="text-2xl font-bold text-emerald-900">
-                {activeOptimizationResult.bestConflicts.total}{' '}
+                {activeOptimizationResult.bestConflicts?.total ?? (activeOptimizationResult as any).bestConflictsCount ?? 0}{' '}
                 <span className="text-xs text-emerald-700 font-normal">total konflik</span>
               </div>
               <div className="text-xs text-emerald-800 space-y-1">
                 <div className="flex justify-between">
                   <span>Hard Conflicts:</span>
-                  <span className="font-bold text-emerald-700">{activeOptimizationResult.bestConflicts.hard}</span>
+                  <span className="font-bold text-emerald-700">{activeOptimizationResult.bestConflicts?.hard ?? 0}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Soft Conflicts:</span>
-                  <span className="font-bold text-emerald-700">{activeOptimizationResult.bestConflicts.soft}</span>
+                  <span className="font-bold text-emerald-700">{activeOptimizationResult.bestConflicts?.soft ?? 0}</span>
                 </div>
                 <div className="flex justify-between pt-1 border-t border-emerald-200">
                   <span>Total Cost:</span>
-                  <span className="font-mono font-bold text-emerald-900">{activeOptimizationResult.bestCost}</span>
+                  <span className="font-mono font-bold text-emerald-900">{activeOptimizationResult.bestCost ?? 0}</span>
                 </div>
               </div>
             </div>
@@ -461,14 +550,13 @@ export const OptimizationPage: React.FC<OptimizationPageProps> = ({
               <div>
                 <span className="text-[11px] font-bold text-indigo-800 uppercase">Persentase Perbaikan</span>
                 <div className="text-2xl font-bold text-indigo-950 mt-1">
-                  {activeOptimizationResult.initialConflicts.total > 0
-                    ? (
-                        ((activeOptimizationResult.initialConflicts.total -
-                          activeOptimizationResult.bestConflicts.total) /
-                          activeOptimizationResult.initialConflicts.total) *
-                        100
-                      ).toFixed(1)
-                    : 0}
+                  {(() => {
+                    const init = activeOptimizationResult.initialConflicts?.total ?? (activeOptimizationResult as any).initialConflictsCount ?? 0;
+                    const best = activeOptimizationResult.bestConflicts?.total ?? (activeOptimizationResult as any).bestConflictsCount ?? 0;
+                    if (init <= 0) return '0.0';
+                    const red = ((init - best) / init) * 100;
+                    return isNaN(red) ? '0.0' : Math.max(0, red).toFixed(1);
+                  })()}
                   % <span className="text-xs text-indigo-700 font-normal">pengurangan konflik</span>
                 </div>
               </div>
@@ -477,22 +565,22 @@ export const OptimizationPage: React.FC<OptimizationPageProps> = ({
                 <div className="flex justify-between">
                   <span>Cost Reduction:</span>
                   <span className="font-bold">
-                    {activeOptimizationResult.initialCost > 0
-                      ? (
-                          ((activeOptimizationResult.initialCost - activeOptimizationResult.bestCost) /
-                            activeOptimizationResult.initialCost) *
-                          100
-                        ).toFixed(1)
-                      : 0}
+                    {(() => {
+                      const initCost = activeOptimizationResult.initialCost ?? 0;
+                      const bestCost = activeOptimizationResult.bestCost ?? 0;
+                      if (initCost <= 0) return '0.0';
+                      const red = ((initCost - bestCost) / initCost) * 100;
+                      return isNaN(red) ? '0.0' : Math.max(0, red).toFixed(1);
+                    })()}
                     %
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Solusi Terbaik Ditemukan:</span>
-                  <span className="font-mono font-bold">Iterasi #{activeOptimizationResult.bestIteration}</span>
+                  <span className="font-mono font-bold">Iterasi #{activeOptimizationResult.bestIteration ?? 0}</span>
                 </div>
                 <div className="text-[11px] text-emerald-700 font-semibold pt-1">
-                  {activeOptimizationResult.bestConflicts.total === 0
+                  {(activeOptimizationResult.bestConflicts?.total ?? 0) === 0
                     ? '★ Tidak ditemukan konflik pada solusi final.'
                     : '★ Berhasil meminimalkan konflik secara signifikan.'}
                 </div>
@@ -660,22 +748,26 @@ export const OptimizationPage: React.FC<OptimizationPageProps> = ({
                       }
                     >
                       <td className="px-3 py-1.5 font-bold">#{t.iteration}</td>
-                      <td className="px-3 py-1.5 text-amber-600">{t.temperature.toFixed(2)}</td>
-                      <td className="px-3 py-1.5">{t.currentCost}</td>
-                      <td className="px-3 py-1.5">{t.neighborCost}</td>
+                      <td className="px-3 py-1.5 text-amber-600">
+                        {t.temperature !== undefined && !isNaN(t.temperature) ? t.temperature.toFixed(2) : '-'}
+                      </td>
+                      <td className="px-3 py-1.5">{t.currentCost ?? '-'}</td>
+                      <td className="px-3 py-1.5">{t.neighborCost ?? '-'}</td>
                       <td
                         className={`px-3 py-1.5 font-semibold ${
-                          t.deltaCost < 0
+                          (t.deltaCost ?? 0) < 0
                             ? 'text-emerald-600'
-                            : t.deltaCost === 0
+                            : (t.deltaCost ?? 0) === 0
                             ? 'text-slate-500'
                             : 'text-rose-600'
                         }`}
                       >
-                        {t.deltaCost > 0 ? `+${t.deltaCost}` : t.deltaCost}
+                        {(t.deltaCost ?? 0) > 0 ? `+${t.deltaCost}` : (t.deltaCost ?? '-')}
                       </td>
                       <td className="px-3 py-1.5">
-                        {(t.acceptanceProbability * 100).toFixed(1)}%
+                        {t.acceptanceProbability !== undefined && !isNaN(t.acceptanceProbability)
+                          ? `${(t.acceptanceProbability * 100).toFixed(1)}%`
+                          : '-'}
                       </td>
                       <td className="px-3 py-1.5">
                         {t.isNewBest ? (

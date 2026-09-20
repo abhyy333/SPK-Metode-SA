@@ -167,13 +167,13 @@ export const LecturerSchedulePage: React.FC<LecturerSchedulePageProps> = ({
               <tbody className="divide-y divide-slate-200">
                 {uniqueSlotIndices.map(slotIdx => {
                   const sampleSlot = timeslots.find(t => t.slotIndex === slotIdx);
-                  const slotLabel = sampleSlot?.label || `Slot #${slotIdx}`;
+                  const slotLabel = sampleSlot?.label || `Sesi ${slotIdx}`;
 
                   return (
                     <tr key={slotIdx} className="hover:bg-slate-50/40">
                       <td className="p-3 text-center bg-slate-50/50 border-r border-slate-200 font-mono">
                         <div className="font-bold text-slate-800 text-xs">{slotLabel}</div>
-                        <div className="text-[10px] text-slate-400 font-sans">Slot #{slotIdx}</div>
+                        <div className="text-[10px] text-slate-400 font-sans">Sesi {slotIdx}</div>
                       </td>
 
                       {filteredDays.map(day => {
@@ -219,7 +219,7 @@ export const LecturerSchedulePage: React.FC<LecturerSchedulePageProps> = ({
                               </div>
                             ) : isDayUnavailable || isSlotBlocked ? (
                               <div className="h-16 flex items-center justify-center text-slate-400 text-[10px] bg-slate-50/60 border border-dashed border-slate-200 rounded-xl">
-                                {isDayUnavailable ? 'Hari Tidak Tersedia' : 'Slot Diblokir'}
+                                {isDayUnavailable ? 'Hari Tidak Tersedia' : 'Sesi Diblokir'}
                               </div>
                             ) : (
                               <div className="h-16 flex items-center justify-center text-slate-300 text-[11px] border border-dashed border-slate-100 rounded-xl">

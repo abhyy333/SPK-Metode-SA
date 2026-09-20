@@ -12,14 +12,21 @@ export type ConflictSeverity = 'high' | 'medium' | 'low';
 export type ConflictCategory =
   | 'LECTURER_OVERLAP'
   | 'ROOM_OVERLAP'
+  | 'PACKAGE_OVERLAP'
   | 'CLASS_OVERLAP'
   | 'STUDENT_OVERLAP'
   | 'CURRICULUM_CONFLICT'
   | 'ROOM_CAPACITY'
   | 'LECTURER_UNAVAILABLE'
   | 'ROOM_TYPE_MISMATCH'
+  | 'LOCKED_VIOLATION'
+  | 'LECTURER_DENSITY'
+  | 'PACKAGE_DENSITY'
+  | 'TIME_UNFAVORABLE'
+  | 'LECTURER_PREFERENCE'
   | 'LECTURER_PREFERENCE_DAY'
   | 'LECTURER_PREFERENCE_TIME'
+  | 'LECTURER_ROOM_HOPPING'
   | 'SCHEDULE_DENSITY'
   | 'MISSING_ASSIGNMENT';
 
@@ -46,6 +53,11 @@ export interface Curriculum {
   requiredGraduationCredits: number; // 144 for 2026, 146 for 2022
   notes?: string[];
   isActive: boolean;
+}
+
+export interface CurriculumAvailability {
+  curriculumYear: 2022 | 2026;
+  isSchedulingActive: boolean;
 }
 
 export interface StudentCurriculumDeterminationResult {
@@ -220,6 +232,16 @@ export interface Lecturer {
   warningReason?: string;
 }
 
+export interface StudentSchedulePreference {
+  studentId: string;
+  offeringId?: string;
+  courseId: string;
+  sectionName: string; // e.g. 'A', 'B', 'C'
+  semester?: number;
+  curriculumYear?: number;
+  updatedAt?: string;
+}
+
 export interface Student {
   id: string;
   nim: string;
@@ -228,6 +250,10 @@ export interface Student {
   currentSemester: number;
   semester?: number;
   totalEarnedCredits?: number | null; // e.g. 108, 126, or null
+  passedCreditsOverride?: number | null;
+  calculatedPassedCredits?: number | null;
+  gpa?: number | null;
+  lastSemesterGpa?: number | null;
   curriculumYear?: 2022 | 2026 | null;
   curriculumId?: string;
   curriculumDeterminationReason?: string;
@@ -235,9 +261,15 @@ export interface Student {
   isManualCurriculumOverride?: boolean;
   curriculumOverrideReason?: string;
   kbkId?: string | null; // null = "KBK belum ditentukan"
-  classId?: string | null;
+  kbkDataSource?: 'synthetic' | 'real';
+  academicAdvisorLecturerId?: string | null; // Dosen Pembimbing Akademik
+  academicAdvisorLecturerName?: string | null;
+  classId?: string | null; // legacy optional
   enrolledCourseIds?: string[];
   status: 'active' | 'historical';
+  hasRetake?: boolean;
+  requiredRetakeCount?: number;
+  recommendedRetakeCount?: number;
   isActive?: boolean;
   dataWarning?: boolean;
   warningReason?: string;
@@ -252,13 +284,17 @@ export interface StudentEnrollment {
   curriculumYear?: 2022 | 2026;
   packageSemester?: number; // e.g. 3 if retaking a semester 3 course
   academicSemester?: number; // student's current semester e.g. 7
+  semester?: number;
   courseOfferingId?: string;
   academicYear: string;
-  semesterTaken: number;
+  semesterTaken?: number;
   kbkId?: string | null;
   status: 'planned' | 'enrolled' | 'completed' | 'failed' | 'retake';
   isRetake?: boolean; // true if retaking a course from a previous semester
+  enrollmentType?: 'regular' | 'package' | 'retake' | 'elective' | 'additional';
+  retakeFromSemester?: number;
   enrolledAt?: string;
+  createdAt?: string;
 }
 
 export interface ClassGroup {
@@ -275,15 +311,44 @@ export interface ClassGroup {
   isActive?: boolean;
 }
 
+export interface CourseOfferingLockConfig {
+  time?: boolean;
+  room?: boolean;
+  lecturer?: boolean;
+  full?: boolean;
+  lockTimeslot?: boolean;
+  lockRoom?: boolean;
+  lockLecturer?: boolean;
+}
+
+// Kelompok Jadwal Abstrak Berdasarkan Kurikulum/Semester/KBK
+export interface ScheduleGroup {
+  id: string; // e.g. "pkg-2026-sem-1", "pkg-2026-sem-5-komputer"
+  name: string; // e.g. "Semester 1 (Paket Umum)", "Semester 5 (KBK Komputer)"
+  curriculumYear: 2022 | 2026 | number;
+  academicTerm: 'ganjil' | 'genap';
+  semester: number;
+  kbkId?: string | null;
+  projectedStudentCount?: number;
+}
+
+export type OfferingSourceType = 'package' | 'manual';
+export type CourseOfferingType = 'regular' | 'elective' | 'additional' | 'retake-open' | 'theory' | 'practicum';
+
 // Mata Kuliah yang Dibuka pada Semester Aktif (Course Offering)
 export interface CourseOffering {
   id: string;
-  code?: string; // e.g. 'MPS1071107-1A'
+  code?: string; // e.g. 'MPS1071107-A'
   courseId: string;
   courseCode?: string;
   courseName?: string;
   sks?: number;
   credits?: number;
+  sourceType?: OfferingSourceType; // 'package' | 'manual'
+  offeringType?: CourseOfferingType; // 'regular' | 'elective' | 'additional' | 'retake-open'
+  section?: string; // 'A', 'B', 'C' (per offering)
+  sectionName?: string; // alias
+  targetScheduleGroup?: string; // ID of ScheduleGroup to prevent package clashing
   category?: CourseCategory;
   curriculumYear?: number;
   academicYear?: string;
@@ -291,6 +356,14 @@ export interface CourseOffering {
   term?: string;
   semester?: number;
   kbkId?: string | null;
+  assignedLecturerId?: string | null; // Primary assigned lecturer
+  assignedLecturerIds?: string[];
+  eligibleLecturerIds?: string[]; // Candidate lecturers qualified for this subject
+  expectedEnrollment?: number; // Estimated/projected participants (e.g. 45, 78)
+  isDataProjection?: boolean; // Flag to show "PROYEKSI DATA — perlu validasi jurusan"
+  requiredRoomType?: RoomType; // 'Kelas' | 'Laboratorium' | 'Ruang Seminar'
+  requiredEquipment?: string[];
+  preferredTimeslots?: string[];
   classId?: string | null;
   className?: string;
   classCode?: string;
@@ -308,8 +381,15 @@ export interface CourseOffering {
   enrolledCount?: number;
   studentCount?: number;
   studentIds?: string[];
-  status: 'draft' | 'ready' | 'scheduled' | 'published';
+  isPracticum?: boolean;
+  generationSource?: 'package' | 'repeat' | 'elective' | 'manual';
+  generatedAt?: string;
+  status: 'draft' | 'ready' | 'scheduled' | 'published' | 'closed_low_enrollment';
   priority?: 'Tinggi' | 'Normal';
+  isLocked?: boolean;
+  lockedSchedule?: boolean;
+  lockConfig?: CourseOfferingLockConfig;
+  scheduleAssignment?: ScheduleAssignment;
 }
 
 export interface Room {
@@ -323,15 +403,30 @@ export interface Room {
   isActive: boolean;
 }
 
+export type SessionGroup = 'SENIN_KAMIS' | 'JUMAT';
+
+export interface AcademicSession {
+  id: string;
+  group: SessionGroup;
+  sessionNumber: number;
+  label: string; // "Sesi 1", "Sesi 2", etc.
+  startTime: string; // "07:30"
+  endTime: string;   // "09:10"
+  isActive: boolean;
+}
+
 export interface Timeslot {
   id: string;
   day: DayOfWeek;
   startTime: string; // "07:30"
   endTime: string;   // "09:10"
-  slotIndex: number; // 1..5
+  slotIndex: number; // 1..5 (sessionNumber)
+  sessionNumber?: number;
+  sessionGroup?: SessionGroup;
+  sessionLabel?: string; // "Sesi 1", "Sesi 2", etc.
   durationMinutes: number;
   isActive: boolean;
-  label: string;     // "07:30 - 09:10"
+  label: string;     // "Sesi 1 (07:30 - 09:10)" or "07:30 - 09:10"
 }
 
 export interface ScheduleAssignment {
@@ -343,6 +438,9 @@ export interface ScheduleAssignment {
   classId: string;
   roomId: string;
   timeslotId: string;
+  isFixed?: boolean;
+  isLocked?: boolean;
+  lockConfig?: CourseOfferingLockConfig;
 }
 
 export interface ConflictItem {
@@ -372,14 +470,15 @@ export interface ConflictItem {
 }
 
 export interface ConstraintWeights {
-  hardConflictWeight: number;    // C1, C2, C3 (Default 100)
-  studentConflictWeight: number; // Student clash in 2 courses (Default 100)
-  curriculumConflictWeight: number; // Same package clash (Default 70)
-  roomCapacityWeight: number;    // C4 (Default 80)
-  availabilityWeight: number;    // C5 (Default 70)
-  roomTypeMismatchWeight: number;// Soft/Medium (Default 40)
-  preferenceWeight: number;      // Soft Preference (Default 15)
-  densityWeight: number;         // Soft Distribution (Default 10)
+  hardConflictWeight: number;       // Lecturer & Room double booking (Default 100)
+  packageConflictWeight?: number;   // Same Schedule Group / Semester Package clash (Default 100)
+  studentConflictWeight?: number;   // Compatibility (Default 100)
+  curriculumConflictWeight?: number;// Same package clash (Default 100)
+  roomCapacityWeight: number;       // Room capacity < expectedEnrollment (Default 80)
+  availabilityWeight: number;       // Lecturer unavailable slot (Default 80)
+  roomTypeMismatchWeight: number;   // Room type / equipment mismatch (Default 70)
+  preferenceWeight: number;         // Lecturer preference & undesirable hours (Default 15)
+  densityWeight: number;            // Lecturer daily dispersion & package daily density (Default 10)
 }
 
 export interface SAParameters {
@@ -388,6 +487,337 @@ export interface SAParameters {
   coolingRate: number;        // alpha, e.g. 0.995 or 0.98
   maxIterations: number;      // max iterations, e.g. 3000 - 5000
   mutationRate: number;       // neighbor mutation rate, e.g. 0.2
+  randomSeed?: number;        // e.g. 20260911 for reproducible SA runs
+}
+
+export interface OptimizationObjectiveBreakdown {
+  lecturerConflictCount: number;
+  roomConflictCount: number;
+  studentConflictCount: number;
+  retakeConflictCount: number;
+  capacityConflictCount: number;
+  availabilityConflictCount: number;
+  softConstraintPenalty: number;
+}
+
+export interface ScheduleVersion {
+  id: string;
+  academicYear: string;
+  academicTerm: string;
+  versionNumber: number;
+  name: string;
+  status: 'draft' | 'optimized' | 'published' | 'archived';
+  createdAt: string;
+  createdBy: string;
+  optimizationRunId?: string;
+  scheduleAssignments: ScheduleAssignment[];
+  notes?: string;
+}
+
+export interface ScheduleSnapshot {
+  id: string;
+  name: string;
+  academicYear: string;
+  academicTerm: 'ganjil' | 'genap' | string;
+  curriculumConfig?: any;
+  createdAt: string;
+  createdBy: string;
+  sourceVersionId?: string;
+  notes?: string;
+  scheduleData: ScheduleAssignment[];
+  courseOfferingData: CourseOffering[];
+  sessionData?: Timeslot[] | AcademicSession[];
+  roomAssignments?: Record<string, string>;
+  lecturerAssignments?: Record<string, string[]>;
+  metrics?: {
+    totalAssignments: number;
+    totalOfferings: number;
+    hardConflicts: number;
+    softConflicts: number;
+    cost?: number;
+    fitness?: number;
+  };
+  isAutoBackup?: boolean;
+}
+
+export type ScheduleChangeEntityType =
+  | 'ScheduleAssignment'
+  | 'CourseOffering'
+  | 'Course'
+  | 'Lecturer'
+  | 'Room'
+  | 'Timeslot'
+  | 'Curriculum'
+  | 'SYSTEM'
+  | 'ScheduleSnapshot'
+  | 'StudentSchedulePreference';
+
+export type ScheduleChangeAction =
+  | 'ADD_COURSE'
+  | 'DELETE_COURSE'
+  | 'UPDATE_STUDENT_COUNT'
+  | 'DIVIDE_SECTION'
+  | 'REGENERATE_SECTION'
+  | 'ASSIGN_LECTURER'
+  | 'CHANGE_LECTURER'
+  | 'REMOVE_LECTURER'
+  | 'CHANGE_ROOM'
+  | 'MOVE_SESSION'
+  | 'SWAP_SCHEDULE'
+  | 'APPLY_SPK_RECOMMENDATION'
+  | 'LOCK_SCHEDULE'
+  | 'UNLOCK_SCHEDULE'
+  | 'INITIAL_GENERATE'
+  | 'SA_OPTIMIZATION'
+  | 'RESTORE_SCHEDULE'
+  | 'PUBLISH_SCHEDULE'
+  | 'UNPUBLISH_SCHEDULE'
+  | 'RESET_SIMULATION'
+  | 'CREATE_SNAPSHOT'
+  | 'SAVE_SNAPSHOT'
+  | 'DELETE_SNAPSHOT'
+  | 'DUPLICATE_SNAPSHOT'
+  | 'TEMPLATE_APPLIED'
+  | 'UNDO_CHANGE'
+  | 'CLEAR_STUDENT_PREFERENCE';
+
+export interface ScheduleChangeLog {
+  id: string;
+  scheduleVersionId?: string;
+  entityType: ScheduleChangeEntityType | string;
+  entityId: string;
+  action: ScheduleChangeAction | string;
+  before: any;
+  after: any;
+  description: string;
+  changedBy: string;
+  changedAt: string;
+  courseCode?: string;
+  courseName?: string;
+  semester?: number;
+  isUndoable?: boolean;
+  undoneAt?: string;
+}
+
+export interface OptimizationRun {
+  id: string;
+  name?: string;
+  timestamp?: string;
+  academicYear?: string;
+  curriculumYear?: number;
+  parameters?: SAParameters;
+  weights?: ConstraintWeights;
+  scheduleVersionId?: string;
+  initialTemperature?: number;
+  minimumTemperature?: number;
+  coolingRate?: number;
+  maxIterations?: number;
+  mutationRate?: number;
+  randomSeed?: number;
+
+  initialCost: number;
+  bestCost: number;
+  finalCost?: number;
+
+  initialHardConflicts?: number;
+  bestHardConflicts?: number;
+  finalHardConflicts?: number;
+
+  initialConflicts?: { total: number; hard: number; soft: number; items?: any[] };
+  bestConflicts?: { total: number; hard: number; soft: number; items?: any[] };
+
+  initialBreakdown?: OptimizationObjectiveBreakdown;
+  bestBreakdown?: OptimizationObjectiveBreakdown;
+
+  totalIterations?: number;
+  bestIteration: number;
+  acceptedMoves?: number;
+  rejectedMoves?: number;
+  acceptanceRate?: number;
+  runtimeMs?: number;
+  executionTimeMs?: number;
+  schedule?: ScheduleAssignment[];
+  createdAt?: string;
+}
+
+export interface CourseEquivalence {
+  id: string;
+  sourceCurriculumYear: 2022 | 2026;
+  sourceCourseId: string;
+  sourceCourseCode?: string;
+  sourceCourseName?: string;
+  targetCurriculumYear: 2022 | 2026;
+  targetCourseId: string;
+  targetCourseCode?: string;
+  targetCourseName?: string;
+  equivalenceType: 'Wajib' | 'Pilihan' | 'Substitusi' | 'Penyetaraan Otomatis';
+  notes?: string;
+  verified: boolean;
+  verifiedAt?: string;
+  verifiedBy?: string;
+}
+
+// ==========================================
+// MODUL KRS, RIWAYAT KRS & PENILAIAN
+// ==========================================
+
+export type KRSStatus = 'draft' | 'submitted' | 'approved' | 'completed';
+export type AcademicTerm = 'ganjil' | 'genap';
+export type KRSEnrollmentType = 'package' | 'elective' | 'retake' | 'additional';
+export type KRSItemStatus = 'planned' | 'enrolled' | 'completed' | 'cancelled';
+export type GradeStatus = 'incomplete' | 'complete';
+export type RetakeStatus = 'required' | 'recommended' | 'not_required' | 'cleared';
+
+export interface StudentKRS {
+  id: string;
+  studentId: string;
+  academicYear: string;       // e.g. "2026/2027" or "2024/2025"
+  academicTerm: AcademicTerm; // "ganjil" | "genap"
+  studentSemester: number;    // Semester studi mahasiswa pada periode ini (1..8)
+  curriculumYear: 2022 | 2026;
+  status: KRSStatus;
+  totalCredits: number;
+  dataSource?: 'synthetic' | 'real';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KRSItem {
+  id: string;
+  krsId: string;
+  studentId: string;
+  courseId: string;
+  courseCode: string;
+  courseName: string;
+  credits: number;
+  packageSemester: number;
+  enrollmentType: KRSEnrollmentType;
+  previousAttemptId?: string | null;
+  previousGrade?: string | null;
+  retakeReason?: string | null;
+  status: KRSItemStatus;
+  dataSource?: 'synthetic' | 'real';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CourseGrade {
+  id: string;
+  studentId: string;
+  courseId: string;
+  krsItemId: string;
+  academicYear?: string;
+  academicTerm?: AcademicTerm;
+  studentSemester?: number;
+
+  attendanceScore?: number | null; // 0..100
+  assignmentScore?: number | null; // 0..100
+  quizScore?: number | null;       // 0..100
+  midtermScore?: number | null;    // 0..100
+  finalExamScore?: number | null;  // 0..100
+
+  numericFinalScore?: number | null;
+  letterGrade?: string | null;     // 'A', 'B+', 'B', 'C+', 'C', 'D', 'E', 'K'
+  gradeStatus: GradeStatus;
+  gradeCalculationMode?: 'formula-calculated' | 'synthetic-letter-grade' | 'manual-input';
+  dataSource?: 'synthetic' | 'real';
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GradeWeightConfig {
+  id: string;
+  name?: string;
+  attendanceWeight: number; // e.g. 0.10 (10%)
+  assignmentWeight: number; // e.g. 0.20 (20%)
+  quizWeight: number;       // e.g. 0.20 (20%)
+  midtermWeight: number;    // e.g. 0.25 (25%)
+  finalExamWeight: number;  // e.g. 0.25 (25%)
+  isConfigured: boolean;    // When false, show "Bobot penilaian belum dikonfigurasi."
+  updatedAt: string;
+  updatedBy?: string;
+}
+
+export interface GradeScaleRange {
+  letterGrade: string;
+  minScore: number;
+  maxScore: number;
+  gpaPoint: number;
+  description?: string;
+}
+
+export interface GradeScaleConfig {
+  id: string;
+  name?: string;
+  ranges: GradeScaleRange[];
+  isConfigured: boolean;
+  updatedAt: string;
+  updatedBy?: string;
+}
+
+export interface CourseAttempt {
+  attemptNumber: number;
+  academicYear: string;
+  academicTerm: AcademicTerm;
+  semester: number;
+  courseId: string;
+  courseCode: string;
+  courseName: string;
+  credits: number;
+  grade?: CourseGrade | null;
+  letterGrade?: string | null;
+  numericFinalScore?: number | null;
+  krsItemId: string;
+  retakeStatus: RetakeStatus;
+  dataSource?: 'synthetic' | 'real';
+}
+
+export interface StudentRetakeEvaluation {
+  courseId: string;
+  courseCode: string;
+  courseName: string;
+  credits: number;
+  packageSemester: number;
+  latestGrade: string | null;
+  latestNumericScore: number | null;
+  retakeStatus: RetakeStatus; // 'required' | 'recommended' | 'cleared'
+  retakeLabel: string;        // "WAJIB MENGULANG" | "DISARANKAN MENGULANG" | "SUDAH LULUS / TIDAK PERLU MENGULANG"
+  retakeReason: string;       // e.g. "Nilai terakhir E", "Nilai terakhir K", "Nilai terakhir D — disarankan mengulang"
+  attempts: CourseAttempt[];
+  equivalentCourseId?: string;
+  equivalentCourseCode?: string;
+  equivalentCourseName?: string;
+  isAlreadyInCurrentKRS?: boolean;
+}
+
+export interface RetakeDetectionResult {
+  studentId: string;
+  studentName?: string;
+  studentNim?: string;
+  currentSemester?: number;
+  cohortYear?: number;
+  requiredRetakes: StudentRetakeEvaluation[];
+  recommendedRetakes: StudentRetakeEvaluation[];
+  clearedCourses: StudentRetakeEvaluation[];
+  totalRequiredCredits: number;
+  totalRecommendedCredits: number;
+}
+
+export interface AuditLog {
+  id: string;
+  entityType: 'ScheduleAssignment' | 'CourseOffering' | 'Lecturer' | 'Room' | 'ScheduleVersion' | 'SCHEDULE';
+  entityId: string;
+  action: string;
+  before?: any;
+  after?: any;
+  previousState?: any;
+  newState?: any;
+  details?: string;
+  userName?: string;
+  method?: 'manual' | 'recommendation' | 'simulated_annealing' | 'import' | 'system';
+  userId: string;
+  timestamp: string;
 }
 
 export interface ConvergencePoint {
@@ -549,4 +979,74 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canAccessResearchMode: false,
   },
 };
+
+export interface ScheduleSnapshot {
+  id: string;
+  name: string;
+  academicYear: string;
+  academicTerm: string;
+  curriculumConfig?: {
+    curriculumYear?: number;
+    activePackagesCount?: number;
+  };
+  createdAt: string;
+  createdBy: string;
+  sourceVersionId?: string;
+  notes?: string;
+  isAutoBackup?: boolean;
+  scheduleData: ScheduleAssignment[];
+  courseOfferingData?: CourseOffering[];
+  sessionData?: any[];
+  roomAssignments?: Record<string, string>;
+  lecturerAssignments?: Record<string, string[]>;
+  metrics?: {
+    totalSessions?: number;
+    totalOfferings?: number;
+    hardConflicts?: number;
+    softConflicts?: number;
+  };
+}
+
+export type ScheduleChangeAction =
+  | 'MOVE_SESSION'
+  | 'CHANGE_ROOM'
+  | 'ASSIGN_LECTURER'
+  | 'CHANGE_LECTURER'
+  | 'SWAP_SCHEDULE'
+  | 'APPLY_SPK_RECOMMENDATION'
+  | 'SA_OPTIMIZATION'
+  | 'RESTORE_SCHEDULE'
+  | 'TEMPLATE_APPLIED'
+  | 'SAVE_SNAPSHOT'
+  | 'PUBLISH_SCHEDULE'
+  | 'UNDO_CHANGE'
+  | 'SYSTEM_RESET';
+
+export type ScheduleChangeEntityType =
+  | 'ScheduleAssignment'
+  | 'CourseOffering'
+  | 'ScheduleSnapshot'
+  | 'SYSTEM';
+
+export interface ScheduleChangeLog {
+  id: string;
+  changedAt: string;
+  changedBy: string;
+  userRole?: string;
+  action: ScheduleChangeAction;
+  entityType: ScheduleChangeEntityType;
+  entityId?: string;
+  courseId?: string;
+  courseCode?: string;
+  courseName?: string;
+  offeringId?: string;
+  semester?: number;
+  description: string;
+  before?: any;
+  after?: any;
+  isUndoable?: boolean;
+  undoneAt?: string;
+  undoneBy?: string;
+}
+
 

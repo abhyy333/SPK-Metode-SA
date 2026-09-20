@@ -2,18 +2,20 @@ import { Student, StudentCurriculumDeterminationResult, Course, CurriculumPackag
 
 /**
  * ATURAN PENENTUAN KURIKULUM MAHASISWA TEKNIK ELEKTRO UNIVERSITAS MATARAM:
- * 1. Angkatan 2024 ke atas (2024, 2025, 2026, dst.) -> Kurikulum 2026
- * 2. Angkatan 2023 ke bawah (2023, 2022, 2021, dst.):
- *    - Jika telah memenuhi minimal 120 SKS -> Kurikulum 2022 (OBE)
- *    - Jika belum memenuhi 120 SKS (< 120 SKS) -> Kurikulum 2026
- * 3. Manual override oleh Admin dengan catatan alasan.
+ * PRIORITAS 1: Angkatan 2024 ke atas (2024, 2025, 2026, dst.) -> Kurikulum 2026
+ * PRIORITAS 2: Angkatan 2023 ke bawah:
+ *    - Jika currentSemester >= 7 ATAU totalEarnedCredits >= 120 -> Kurikulum 2022 (OBE)
+ *    (Pada TA 2026/2027 Ganjil, Angkatan 2023 berada pada Semester 7 -> Kurikulum 2022)
+ * PRIORITAS 3: Angkatan 2023 ke bawah yang currentSemester < 7 DAN totalEarnedCredits < 120 -> Kurikulum 2026 (Transisi)
+ * OVERRIDE: Manual override oleh Admin dengan catatan alasan.
  */
 export function determineStudentCurriculum(
   cohortYear: number,
   totalEarnedCredits: number,
   isManualOverride: boolean = false,
   manualCurriculumYear?: number,
-  manualReason?: string
+  manualReason?: string,
+  currentSemester?: number
 ): StudentCurriculumDeterminationResult {
   if (isManualOverride && manualCurriculumYear) {
     const year: 2022 | 2026 = manualCurriculumYear === 2022 ? 2022 : 2026;
@@ -27,7 +29,7 @@ export function determineStudentCurriculum(
     };
   }
 
-  // Angkatan 2024 ke atas
+  // Prioritas 1: Angkatan 2024 ke atas
   if (cohortYear >= 2024) {
     return {
       curriculumYear: 2026,
@@ -39,13 +41,17 @@ export function determineStudentCurriculum(
     };
   }
 
-  // Angkatan 2023 ke bawah
-  if (totalEarnedCredits >= 120) {
+  // Prioritas 2 & 3: Angkatan 2023 ke bawah
+  const sem = currentSemester !== undefined ? currentSemester : ((2026 - cohortYear) * 2) + 1;
+  if (sem >= 7 || totalEarnedCredits >= 120) {
+    const reasonDetail = sem >= 7
+      ? `Angkatan ${cohortYear} berada pada Semester ${sem} (>= 7)`
+      : `Perolehan SKS ${totalEarnedCredits} (>= 120 SKS)`;
     return {
       curriculumYear: 2022,
       curriculumId: 'curr-2022',
-      reason: `Angkatan ${cohortYear} telah memenuhi batas minimal SKS lulus (Perolehan: ${totalEarnedCredits} SKS >= 120 SKS) -> Tetap Kurikulum 2022`,
-      ruleCode: 'RULE_SENIOR_120_PLUS_SKS',
+      reason: `${reasonDetail} -> Mengikuti Kurikulum 2022 (OBE)`,
+      ruleCode: 'RULE_SENIOR_2022',
       isOverride: false,
       status: 'Calculated',
     };
@@ -53,7 +59,7 @@ export function determineStudentCurriculum(
     return {
       curriculumYear: 2026,
       curriculumId: 'curr-2026',
-      reason: `Angkatan ${cohortYear} belum memenuhi batas 120 SKS (Perolehan: ${totalEarnedCredits} SKS < 120 SKS) -> Migrasi Transisi ke Kurikulum 2026`,
+      reason: `Angkatan ${cohortYear} (Semester ${sem} < 7 & ${totalEarnedCredits} SKS < 120 SKS) -> Aturan transisi Kurikulum 2026`,
       ruleCode: 'RULE_SENIOR_UNDER_120_SKS',
       isOverride: false,
       status: 'Calculated',

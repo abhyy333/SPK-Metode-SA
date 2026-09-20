@@ -354,10 +354,11 @@ export const CoursesPage: React.FC<CoursesPageProps> = ({
         {/* Pagination Controls */}
         <Pagination
           currentPage={currentPage}
+          totalPages={Math.ceil(filteredCourses.length / pageSize) || 1}
           totalItems={filteredCourses.length}
-          pageSize={pageSize}
+          itemsPerPage={pageSize}
           onPageChange={setCurrentPage}
-          onPageSizeChange={(size) => {
+          onItemsPerPageChange={(size) => {
             setPageSize(size);
             setCurrentPage(1);
           }}

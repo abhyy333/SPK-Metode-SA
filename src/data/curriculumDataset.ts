@@ -36,7 +36,7 @@ export const INITIAL_CURRICULA: Curriculum[] = [
       'Komunikasi Data dan Jaringan Komputer: Includekan praktikum jarkom (bisa tugas besar)',
       'Variabel kompleks mengakomodir materi metode numerik',
       'Mata kuliah pilihan dari 10 SKS ambil nilai tertinggi dari 8 SKS',
-      '3 KBK Aktif: Komputer (KOM), Sistem Tenaga Listrik (STL), Elektronika Komunikasi (ELKOM)',
+      '3 KBK Aktif: Komputer (KOM), Sistem Tenaga Listrik (STL), Elektronika Digital dan Telekomunikasi (ELKOM)',
     ],
     isActive: true,
   },
@@ -47,7 +47,7 @@ export const INITIAL_CURRICULA: Curriculum[] = [
  * Kurikulum 2026 (3 KBK Aktif):
  * 1. Komputer (id: 'kbk-komputer')
  * 2. Sistem Tenaga Listrik (id: 'kbk-stl')
- * 3. Elektronika Komunikasi (id: 'kbk-elektronika-komunikasi')
+ * 3. Elektronika Digital dan Telekomunikasi (id: 'kbk-elektronika-komunikasi')
  * 
  * Kurikulum 2022 (KBK Historis):
  * - Sistem Tenaga Listrik (id: 'kbk-stl')
@@ -77,9 +77,9 @@ export const INITIAL_KBKS: KBK[] = [
   {
     id: 'kbk-elektronika-komunikasi',
     code: 'ELKOM',
-    name: 'Elektronika Komunikasi',
+    name: 'Elektronika Digital dan Telekomunikasi',
     curriculumYear: 2026,
-    description: 'Penggabungan Konsentrasi Telekomunikasi dan Elektronika. Fokus pada Sistem Telekomunikasi Nirkabel & Satelit, Gelombang Mikro & Antena, Pengolahan Sinyal Digital, Sistem Tertanam (Embedded/IoT), Sensor & Otomasi Industri.',
+    description: 'Penggabungan Konsentrasi Telekomunikasi dan Elektronika. Fokus pada Sistem Elektronika Digital, Telekomunikasi Nirkabel & Satelit, Gelombang Mikro & Antena, Pengolahan Sinyal Digital, Sistem Tertanam (Embedded/IoT), Sensor & Otomasi Industri.',
     color: '#0284c7', // Sky Blue
     isActive: true,
   },

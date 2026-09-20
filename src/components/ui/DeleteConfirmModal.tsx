@@ -18,7 +18,11 @@ interface DeleteConfirmModalProps {
   onConfirmDeactivate?: () => Promise<void> | void;
   title?: string;
   entityName?: string;
+  itemName?: string;
   entityType?: string;
+  itemType?: string;
+  isUsed?: boolean;
+  usedDetails?: string[];
   details?: { label: string; value: string }[];
   warningMessage?: string;
   dependencyInfo?: DeleteDependencyInfo;
@@ -31,7 +35,11 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
   onConfirmDeactivate,
   title,
   entityName = '',
+  itemName = '',
   entityType = 'Data',
+  itemType = '',
+  isUsed = false,
+  usedDetails = [],
   details = [],
   warningMessage = 'Data yang telah dihapus tidak dapat dipulihkan.',
   dependencyInfo,
@@ -39,8 +47,19 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeactivating, setIsDeactivating] = useState(false);
 
-  const safeType = entityType || 'Data';
+  const effectiveEntityName = entityName || itemName || '';
+  const safeType = entityType || itemType || 'Data';
   const lowerType = safeType.toLowerCase();
+
+  const effectiveDependencyInfo: DeleteDependencyInfo | undefined =
+    dependencyInfo || (isUsed ? {
+      isBlocked: true,
+      title: `${safeType} Sedang Digunakan`,
+      message: `${safeType} ini memiliki relasi data aktif dan tidak dapat dihapus langsung:`,
+      items: usedDetails,
+      canDeactivateInstead: Boolean(onConfirmDeactivate),
+      deactivateLabel: `Nonaktifkan ${safeType}`,
+    } : undefined);
 
   const handleDelete = async () => {
     try {
@@ -63,7 +82,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
     }
   };
 
-  const isBlocked = Boolean(dependencyInfo?.isBlocked);
+  const isBlocked = Boolean(effectiveDependencyInfo?.isBlocked);
 
   return (
     <Modal
@@ -81,21 +100,21 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
               <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <h4 className="text-xs font-bold text-amber-900">
-                  {dependencyInfo?.title || `Tidak dapat menghapus ${lowerType}`}
+                  {effectiveDependencyInfo?.title || `Tidak dapat menghapus ${lowerType}`}
                 </h4>
                 <p className="text-xs text-amber-800 leading-relaxed">
-                  {dependencyInfo?.message}
+                  {effectiveDependencyInfo?.message}
                 </p>
               </div>
             </div>
 
-            {dependencyInfo?.items && dependencyInfo.items.length > 0 && (
+            {effectiveDependencyInfo?.items && effectiveDependencyInfo.items.length > 0 && (
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 max-h-40 overflow-y-auto">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   Entitas yang masih menggunakan data ini:
                 </span>
                 <ul className="space-y-1">
-                  {dependencyInfo.items.map((item, idx) => (
+                  {effectiveDependencyInfo.items.map((item, idx) => (
                     <li key={idx} className="text-xs text-slate-700 flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                       <span className="font-medium">{item}</span>
@@ -106,7 +125,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
             )}
 
             <div className="text-xs text-slate-500">
-              {dependencyInfo?.canDeactivateInstead ? (
+              {effectiveDependencyInfo?.canDeactivateInstead ? (
                 <span>
                   Anda dapat <strong>menonaktifkan</strong> status {lowerType} ini agar tidak dipilih lagi pada jadwal baru tanpa merusak data yang sudah ada.
                 </span>
@@ -127,7 +146,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
               >
                 Batalkan
               </button>
-              {dependencyInfo?.canDeactivateInstead && onConfirmDeactivate && (
+              {effectiveDependencyInfo?.canDeactivateInstead && onConfirmDeactivate && (
                 <button
                   type="button"
                   onClick={handleDeactivate}
@@ -143,7 +162,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
                   ) : (
                     <>
                       <Ban className="w-3.5 h-3.5" />
-                      <span>{dependencyInfo.deactivateLabel || `Nonaktifkan ${safeType}`}</span>
+                      <span>{effectiveDependencyInfo.deactivateLabel || `Nonaktifkan ${safeType}`}</span>
                     </>
                   )}
                 </button>
@@ -159,7 +178,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
                 <p className="text-xs font-semibold text-slate-900">
                   Apakah Anda yakin ingin menghapus {lowerType} ini?
                 </p>
-                <div className="text-sm font-bold text-rose-700">{entityName}</div>
+                <div className="text-sm font-bold text-rose-700">{effectiveEntityName}</div>
                 <p className="text-[11px] text-rose-600/90 pt-0.5">{warningMessage}</p>
               </div>
             </div>

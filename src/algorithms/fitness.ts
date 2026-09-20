@@ -9,6 +9,7 @@ import {
   Student,
   StudentEnrollment,
   CurriculumPackage,
+  CourseOffering,
 } from '../types';
 import { detectConflicts, ConflictDetectionResult } from './conflictDetection';
 
@@ -37,7 +38,8 @@ export function evaluateSchedule(
   weights: ConstraintWeights,
   students?: Student[],
   enrollments?: StudentEnrollment[],
-  curriculumPackages?: CurriculumPackage[]
+  curriculumPackages?: CurriculumPackage[],
+  offerings?: CourseOffering[]
 ): FitnessEvaluation {
   const conflictResult = detectConflicts(
     assignments,
@@ -49,7 +51,8 @@ export function evaluateSchedule(
     weights,
     students,
     enrollments,
-    curriculumPackages
+    curriculumPackages,
+    offerings
   );
 
   const cost = conflictResult.totalCost;

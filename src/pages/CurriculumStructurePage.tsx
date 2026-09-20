@@ -394,7 +394,7 @@ export const CurriculumStructurePage: React.FC = () => {
           </div>
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-sky-50 border border-sky-200 text-xs text-sky-900 font-medium">
             <Radio className="w-3.5 h-3.5 text-sky-600" />
-            <span>KBK Elektronika Komunikasi (ELKOM)</span>
+            <span>KBK Elektronika Digital dan Telekomunikasi (ELKOM)</span>
           </div>
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-xs text-indigo-900 font-medium">
             <Share2 className="w-3.5 h-3.5 text-indigo-600" />
@@ -455,7 +455,7 @@ export const CurriculumStructurePage: React.FC = () => {
               <option value="all">Semua Bidang KBK</option>
               <option value="kbk-komputer">KBK Komputer (KOM)</option>
               <option value="kbk-sistem-tenaga">KBK Sistem Tenaga Listrik (STL)</option>
-              <option value="kbk-elektronika-komunikasi">KBK Elektronika Komunikasi (ELKOM)</option>
+              <option value="kbk-elektronika-komunikasi">KBK Elektronika Digital dan Telekomunikasi (ELKOM)</option>
               <option value="cross-kbk">Mata Kuliah Lintas KBK</option>
               <option value="none">Tanpa KBK / Dasar Umum</option>
             </select>
