@@ -31,13 +31,21 @@ export function generateInitialSchedule(
   const availableGeneralRooms = lectureRooms.length > 0 ? lectureRooms : activeRooms;
 
   if (offerings && offerings.length > 0) {
-    // Strictly filter for active theory offerings (exclude practicum & closed electives)
+    // Strictly filter for active theory offerings (exclude practicum, closed electives, and unschedulable courses like KKN)
     const activeTheoryOfferings = offerings.filter(off => {
       if (off.isPracticum) return false;
       if ((off.status as any) === 'closed_low_enrollment') return false;
       const c = courseMap.get(off.courseId) || (off.courseCode ? courseMap.get(off.courseCode) : null);
-      if (c && (c.type === 'Praktikum' || (c.name || '').toLowerCase().includes('praktikum'))) {
-        return false;
+      if (c) {
+        if (c.isSchedulable === false || (c as any).is_schedulable === false || (c as any).dijadwalkanJurusan === false || (c as any).isLppmManaged) {
+          return false;
+        }
+        if (c.type === 'Praktikum' || (c.name || '').toLowerCase().includes('praktikum')) {
+          return false;
+        }
+        if ((c.name || '').trim().toUpperCase() === 'KKN') {
+          return false;
+        }
       }
       return true;
     });
@@ -77,9 +85,14 @@ export function generateInitialSchedule(
       });
     });
   } else {
-    // Fallback if no offerings: only schedule non-practicum courses
+    // Fallback if no offerings: only schedule non-practicum and schedulable courses
     const nonPracticumCourses = courses.filter(
-      c => c.type !== 'Praktikum' && !(c.name || '').toLowerCase().includes('praktikum')
+      c => c.type !== 'Praktikum' &&
+           !(c.name || '').toLowerCase().includes('praktikum') &&
+           c.isSchedulable !== false &&
+           (c as any).is_schedulable !== false &&
+           (c as any).dijadwalkanJurusan !== false &&
+           (c.name || '').trim().toUpperCase() !== 'KKN'
     );
 
     nonPracticumCourses.forEach((course, index) => {

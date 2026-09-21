@@ -7,6 +7,7 @@ import {
   INITIAL_COURSE_OFFERINGS,
   classifyCourseCategory,
 } from './curriculumDataset';
+import { DEFAULT_STANDARD_PERIODS, generateDefaultStandardTimeslots } from '../utils/sessionUtils';
 
 export {
   INITIAL_LECTURERS,
@@ -174,56 +175,17 @@ export const INITIAL_ROOMS: Room[] = [
   },
 ];
 
-export const DEFAULT_ACADEMIC_SESSIONS: AcademicSession[] = [
-  // Senin - Kamis
-  { id: 'sess-sk-1', group: 'SENIN_KAMIS', sessionNumber: 1, label: 'Sesi 1', startTime: '07:30', endTime: '09:10', isActive: true },
-  { id: 'sess-sk-2', group: 'SENIN_KAMIS', sessionNumber: 2, label: 'Sesi 2', startTime: '09:20', endTime: '11:00', isActive: true },
-  { id: 'sess-sk-3', group: 'SENIN_KAMIS', sessionNumber: 3, label: 'Sesi 3', startTime: '11:10', endTime: '12:50', isActive: true },
-  { id: 'sess-sk-4', group: 'SENIN_KAMIS', sessionNumber: 4, label: 'Sesi 4', startTime: '13:30', endTime: '15:10', isActive: true },
-  { id: 'sess-sk-5', group: 'SENIN_KAMIS', sessionNumber: 5, label: 'Sesi 5', startTime: '15:20', endTime: '17:00', isActive: true },
+export const DEFAULT_ACADEMIC_SESSIONS: AcademicSession[] = DEFAULT_STANDARD_PERIODS.map((p, idx) => ({
+  id: `sess-std-${idx + 1}`,
+  group: 'SENIN_KAMIS',
+  sessionNumber: idx + 1,
+  label: `Sesi ${idx + 1}`,
+  startTime: p.startTime,
+  endTime: p.endTime,
+  isActive: true,
+}));
 
-  // Jumat
-  { id: 'sess-fri-1', group: 'JUMAT', sessionNumber: 1, label: 'Sesi 1', startTime: '07:30', endTime: '09:10', isActive: true },
-  { id: 'sess-fri-2', group: 'JUMAT', sessionNumber: 2, label: 'Sesi 2', startTime: '09:20', endTime: '11:00', isActive: true },
-  { id: 'sess-fri-3', group: 'JUMAT', sessionNumber: 3, label: 'Sesi 3', startTime: '13:30', endTime: '15:10', isActive: true },
-  { id: 'sess-fri-4', group: 'JUMAT', sessionNumber: 4, label: 'Sesi 4', startTime: '15:20', endTime: '17:00', isActive: true },
-];
-
-export const INITIAL_TIMESLOTS: Timeslot[] = [
-  // Senin
-  { id: 'ts-mon-1', day: 'Senin', startTime: '07:30', endTime: '09:10', slotIndex: 1, sessionNumber: 1, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 1', durationMinutes: 100, isActive: true, label: 'Sesi 1 (07:30 - 09:10)' },
-  { id: 'ts-mon-2', day: 'Senin', startTime: '09:20', endTime: '11:00', slotIndex: 2, sessionNumber: 2, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 2', durationMinutes: 100, isActive: true, label: 'Sesi 2 (09:20 - 11:00)' },
-  { id: 'ts-mon-3', day: 'Senin', startTime: '11:10', endTime: '12:50', slotIndex: 3, sessionNumber: 3, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 3', durationMinutes: 100, isActive: true, label: 'Sesi 3 (11:10 - 12:50)' },
-  { id: 'ts-mon-4', day: 'Senin', startTime: '13:30', endTime: '15:10', slotIndex: 4, sessionNumber: 4, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 4', durationMinutes: 100, isActive: true, label: 'Sesi 4 (13:30 - 15:10)' },
-  { id: 'ts-mon-5', day: 'Senin', startTime: '15:20', endTime: '17:00', slotIndex: 5, sessionNumber: 5, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 5', durationMinutes: 100, isActive: true, label: 'Sesi 5 (15:20 - 17:00)' },
-
-  // Selasa
-  { id: 'ts-tue-1', day: 'Selasa', startTime: '07:30', endTime: '09:10', slotIndex: 1, sessionNumber: 1, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 1', durationMinutes: 100, isActive: true, label: 'Sesi 1 (07:30 - 09:10)' },
-  { id: 'ts-tue-2', day: 'Selasa', startTime: '09:20', endTime: '11:00', slotIndex: 2, sessionNumber: 2, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 2', durationMinutes: 100, isActive: true, label: 'Sesi 2 (09:20 - 11:00)' },
-  { id: 'ts-tue-3', day: 'Selasa', startTime: '11:10', endTime: '12:50', slotIndex: 3, sessionNumber: 3, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 3', durationMinutes: 100, isActive: true, label: 'Sesi 3 (11:10 - 12:50)' },
-  { id: 'ts-tue-4', day: 'Selasa', startTime: '13:30', endTime: '15:10', slotIndex: 4, sessionNumber: 4, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 4', durationMinutes: 100, isActive: true, label: 'Sesi 4 (13:30 - 15:10)' },
-  { id: 'ts-tue-5', day: 'Selasa', startTime: '15:20', endTime: '17:00', slotIndex: 5, sessionNumber: 5, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 5', durationMinutes: 100, isActive: true, label: 'Sesi 5 (15:20 - 17:00)' },
-
-  // Rabu
-  { id: 'ts-wed-1', day: 'Rabu', startTime: '07:30', endTime: '09:10', slotIndex: 1, sessionNumber: 1, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 1', durationMinutes: 100, isActive: true, label: 'Sesi 1 (07:30 - 09:10)' },
-  { id: 'ts-wed-2', day: 'Rabu', startTime: '09:20', endTime: '11:00', slotIndex: 2, sessionNumber: 2, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 2', durationMinutes: 100, isActive: true, label: 'Sesi 2 (09:20 - 11:00)' },
-  { id: 'ts-wed-3', day: 'Rabu', startTime: '11:10', endTime: '12:50', slotIndex: 3, sessionNumber: 3, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 3', durationMinutes: 100, isActive: true, label: 'Sesi 3 (11:10 - 12:50)' },
-  { id: 'ts-wed-4', day: 'Rabu', startTime: '13:30', endTime: '15:10', slotIndex: 4, sessionNumber: 4, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 4', durationMinutes: 100, isActive: true, label: 'Sesi 4 (13:30 - 15:10)' },
-  { id: 'ts-wed-5', day: 'Rabu', startTime: '15:20', endTime: '17:00', slotIndex: 5, sessionNumber: 5, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 5', durationMinutes: 100, isActive: true, label: 'Sesi 5 (15:20 - 17:00)' },
-
-  // Kamis
-  { id: 'ts-thu-1', day: 'Kamis', startTime: '07:30', endTime: '09:10', slotIndex: 1, sessionNumber: 1, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 1', durationMinutes: 100, isActive: true, label: 'Sesi 1 (07:30 - 09:10)' },
-  { id: 'ts-thu-2', day: 'Kamis', startTime: '09:20', endTime: '11:00', slotIndex: 2, sessionNumber: 2, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 2', durationMinutes: 100, isActive: true, label: 'Sesi 2 (09:20 - 11:00)' },
-  { id: 'ts-thu-3', day: 'Kamis', startTime: '11:10', endTime: '12:50', slotIndex: 3, sessionNumber: 3, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 3', durationMinutes: 100, isActive: true, label: 'Sesi 3 (11:10 - 12:50)' },
-  { id: 'ts-thu-4', day: 'Kamis', startTime: '13:30', endTime: '15:10', slotIndex: 4, sessionNumber: 4, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 4', durationMinutes: 100, isActive: true, label: 'Sesi 4 (13:30 - 15:10)' },
-  { id: 'ts-thu-5', day: 'Kamis', startTime: '15:20', endTime: '17:00', slotIndex: 5, sessionNumber: 5, sessionGroup: 'SENIN_KAMIS', sessionLabel: 'Sesi 5', durationMinutes: 100, isActive: true, label: 'Sesi 5 (15:20 - 17:00)' },
-
-  // Jumat
-  { id: 'ts-fri-1', day: 'Jumat', startTime: '07:30', endTime: '09:10', slotIndex: 1, sessionNumber: 1, sessionGroup: 'JUMAT', sessionLabel: 'Sesi 1', durationMinutes: 100, isActive: true, label: 'Sesi 1 (07:30 - 09:10)' },
-  { id: 'ts-fri-2', day: 'Jumat', startTime: '09:20', endTime: '11:00', slotIndex: 2, sessionNumber: 2, sessionGroup: 'JUMAT', sessionLabel: 'Sesi 2', durationMinutes: 100, isActive: true, label: 'Sesi 2 (09:20 - 11:00)' },
-  { id: 'ts-fri-3', day: 'Jumat', startTime: '13:30', endTime: '15:10', slotIndex: 3, sessionNumber: 3, sessionGroup: 'JUMAT', sessionLabel: 'Sesi 3', durationMinutes: 100, isActive: true, label: 'Sesi 3 (13:30 - 15:10)' },
-  { id: 'ts-fri-4', day: 'Jumat', startTime: '15:20', endTime: '17:00', slotIndex: 4, sessionNumber: 4, sessionGroup: 'JUMAT', sessionLabel: 'Sesi 4', durationMinutes: 100, isActive: true, label: 'Sesi 4 (15:20 - 17:00)' },
-];
+export const INITIAL_TIMESLOTS: Timeslot[] = generateDefaultStandardTimeslots();
 
 export const DEFAULT_PARAMETERS: SAParameters = {
   initialTemperature: 1000,

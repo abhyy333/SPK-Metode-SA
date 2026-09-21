@@ -10,6 +10,7 @@ import {
 } from '../types';
 import { detectConflicts, ConflictDetectionResult } from './conflictDetection';
 import { evaluateSchedule } from './fitness';
+import { calculateCourseTiming, isTimeslotValidForSks } from '../utils/sessionUtils';
 
 export interface MoveEvaluation {
   targetTimeslotId: string;
@@ -95,10 +96,21 @@ export function evaluateMove(
     weights
   );
 
+  const courseSks = Math.max(1, Math.round(currentAssignment.sks || course?.sks || course?.credits || 2));
+  const timing = calculateCourseTiming(targetTimeslot, courseSks, timeslots);
+
   // Simulated schedule after move
   const simulatedSchedule = currentSchedule.map(a =>
     a.id === assignmentId
-      ? { ...a, timeslotId: targetTimeslotId, roomId: targetRoomId }
+      ? {
+          ...a,
+          timeslotId: targetTimeslotId,
+          roomId: targetRoomId,
+          sks: courseSks,
+          durationMinutes: timing.durationMinutes,
+          endTime: timing.endTime,
+          occupiedSlotIds: timing.occupiedSlotIds,
+        }
       : a
   );
 
@@ -259,6 +271,13 @@ export function getScheduleRecommendations(
     if (availableSlots.length > 0) activeTimeslots = availableSlots;
   }
 
+  // Filter slots where this course's SKS fits within the day's consecutive sessions
+  const courseSks = Math.max(1, Math.round(currentAssignment.sks || course?.sks || course?.credits || 2));
+  const validForSks = activeTimeslots.filter(t => isTimeslotValidForSks(t, courseSks, timeslots));
+  if (validForSks.length > 0) {
+    activeTimeslots = validForSks;
+  }
+
   const candidates: MoveEvaluation[] = [];
 
   for (const slot of activeTimeslots) {
@@ -361,6 +380,11 @@ export function evaluateSwap(
     weights
   );
 
+  const sks1 = Math.max(1, Math.round(a1.sks || course1.sks || course1.credits || 2));
+  const sks2 = Math.max(1, Math.round(a2.sks || course2.sks || course2.credits || 2));
+  const timing1 = calculateCourseTiming(timeslot2, sks1, timeslots);
+  const timing2 = calculateCourseTiming(timeslot1, sks2, timeslots);
+
   // Simulated schedule after swap
   const simulatedSchedule = currentSchedule.map(a => {
     if (a.id === assignment1Id) {
@@ -368,6 +392,10 @@ export function evaluateSwap(
         ...a,
         timeslotId: a2.timeslotId,
         roomId: swapRooms ? a2.roomId : a.roomId,
+        sks: sks1,
+        durationMinutes: timing1.durationMinutes,
+        endTime: timing1.endTime,
+        occupiedSlotIds: timing1.occupiedSlotIds,
       };
     }
     if (a.id === assignment2Id) {
@@ -375,6 +403,10 @@ export function evaluateSwap(
         ...a,
         timeslotId: a1.timeslotId,
         roomId: swapRooms ? a1.roomId : a.roomId,
+        sks: sks2,
+        durationMinutes: timing2.durationMinutes,
+        endTime: timing2.endTime,
+        occupiedSlotIds: timing2.occupiedSlotIds,
       };
     }
     return a;

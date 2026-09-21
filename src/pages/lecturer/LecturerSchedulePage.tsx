@@ -10,6 +10,11 @@ import {
   AlertCircle,
   CheckCircle2,
   Filter,
+  BookOpen,
+  FileSpreadsheet,
+  Download,
+  Building2,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   Lecturer,
@@ -20,8 +25,13 @@ import {
   ClassGroup,
   DayOfWeek,
   ScheduleStatus,
+  ExamOffering,
 } from '../../types';
 import { Badge } from '../../components/ui/Badge';
+import { StorageService } from '../../services/storageService';
+import { DownloadScheduleButton } from '../../components/schedule/DownloadScheduleButton';
+import { ScheduleExportItem, ScheduleExportOptions } from '../../utils/scheduleExport';
+import { calculateCourseTiming } from '../../utils/sessionUtils';
 
 interface LecturerSchedulePageProps {
   lecturer: Lecturer;
@@ -46,260 +56,563 @@ export const LecturerSchedulePage: React.FC<LecturerSchedulePageProps> = ({
   scheduleStatus,
   academicYear,
 }) => {
+  // Main Tab: [ Jadwal Mengajar ] vs [ Jadwal Pengawas Ujian ]
+  const [activeMainTab, setActiveMainTab] = useState<'mengajar' | 'pengawas'>('mengajar');
+  // Sub-Tab inside Pengawas Ujian: [ UTS ] vs [ UAS ]
+  const [activeExamSubTab, setActiveExamSubTab] = useState<'UTS' | 'UAS'>('UTS');
+
   const [selectedDay, setSelectedDay] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-  const mySchedule = schedule.filter(a => a.lecturerId === lecturer.id);
+  // Master data maps
+  const courseMap = useMemo(() => new Map<string, Course>(courses.map((c) => [c.id, c])), [courses]);
+  const timeslotMap = useMemo(() => new Map<string, Timeslot>(timeslots.map((t) => [t.id, t])), [timeslots]);
+  const roomMap = useMemo(() => new Map<string, Room>(rooms.map((r) => [r.id, r])), [rooms]);
+  const classMap = useMemo(() => new Map<string, ClassGroup>(classes.map((cl) => [cl.id, cl])), [classes]);
 
-  const courseMap = useMemo(() => new Map<string, Course>(courses.map(c => [c.id, c])), [courses]);
-  const timeslotMap = useMemo(() => new Map<string, Timeslot>(timeslots.map(t => [t.id, t])), [timeslots]);
-  const roomMap = useMemo(() => new Map<string, Room>(rooms.map(r => [r.id, r])), [rooms]);
-  const classMap = useMemo(() => new Map<string, ClassGroup>(classes.map(cl => [cl.id, cl])), [classes]);
+  // Lecturer teaching assignments (supports single or team teaching)
+  const mySchedule = useMemo(() => {
+    return schedule.filter((a) => {
+      if (a.lecturerId === lecturer.id) return true;
+      if (a.lecturerIds && a.lecturerIds.includes(lecturer.id)) return true;
+      return false;
+    });
+  }, [schedule, lecturer.id]);
+
+  // Exam offerings supervised by this lecturer
+  const myExamSupervisions = useMemo(() => {
+    const allExams = StorageService.getExamOfferings(activeExamSubTab);
+    return allExams.filter((ex) => {
+      const isSupervisor = ex.supervisorLecturerIds && ex.supervisorLecturerIds.includes(lecturer.id);
+      const isCourseLecturer = ex.lecturerIds && ex.lecturerIds.includes(lecturer.id);
+      return isSupervisor || isCourseLecturer;
+    });
+  }, [activeExamSubTab, lecturer.id]);
 
   const uniqueSlotIndices = useMemo(() => {
-    return Array.from(new Set(timeslots.map(t => t.slotIndex))).sort((a, b) => Number(a) - Number(b));
+    return Array.from(new Set(timeslots.map((t) => t.slotIndex))).sort((a, b) => Number(a) - Number(b));
   }, [timeslots]);
 
   const filteredDays = selectedDay === 'all' ? ALL_DAYS : [selectedDay as DayOfWeek];
 
-  const handlePrint = () => {
-    window.print();
-  };
+  // Build Download Options for Lecturer
+  const exportOptions: ScheduleExportOptions = useMemo(() => {
+    if (activeMainTab === 'mengajar') {
+      const items: ScheduleExportItem[] = mySchedule.map((assign, idx) => {
+        const crs = courseMap.get(assign.courseId);
+        const ts = timeslotMap.get(assign.timeslotId);
+        const rm = roomMap.get(assign.roomId);
+        const cls = classMap.get(assign.classId);
+        const courseSks = Math.max(1, Math.round(assign.sks || crs?.sks || crs?.credits || 2));
+        const timing = calculateCourseTiming(ts, courseSks, timeslots);
+
+        return {
+          no: idx + 1,
+          dayOrDate: ts?.day || '-',
+          time: ts ? `${ts.startTime} - ${timing.endTime} (${timing.sessionRangeLabel})` : '-',
+          courseCode: crs?.code || '-',
+          courseName: crs?.name || '-',
+          sks: courseSks,
+          sectionOrClass: cls?.name || 'A',
+          room: rm?.name || rm?.code || '-',
+          lecturerOrSupervisor: lecturer.name,
+          semester: crs?.semester,
+        };
+      });
+
+      return {
+        title: 'JADWAL MENGAJAR DOSEN',
+        academicYear,
+        academicTerm: 'Ganjil',
+        filterSubtitle: `Dosen: ${lecturer.name} (NIP: ${lecturer.nip || '-'})`,
+        items,
+        isExam: false,
+        filename: `jadwal_mengajar_${lecturer.name.replace(/[^a-z0-9]/gi, '_')}.pdf`,
+      };
+    } else {
+      const examTitle =
+        activeExamSubTab === 'UTS'
+          ? 'JADWAL TUGAS PENGAWAS UJIAN TENGAH SEMESTER (UTS)'
+          : 'JADWAL TUGAS PENGAWAS UJIAN AKHIR SEMESTER (UAS)';
+
+      const items: ScheduleExportItem[] = myExamSupervisions.map((ex, idx) => {
+        const crs = courseMap.get(ex.courseId);
+        const roomNames = (ex.roomIds || [])
+          .map((id) => roomMap.get(id)?.name || roomMap.get(id)?.code)
+          .filter(Boolean)
+          .join(', ') || '-';
+
+        return {
+          no: idx + 1,
+          dayOrDate: ex.examDate
+            ? new Date(ex.examDate).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' })
+            : 'Belum Ditentukan',
+          time: ex.examSessionId || 'Sesi 1 (08:00 - 09:30)',
+          courseCode: ex.courseCode || crs?.code || '-',
+          courseName: ex.courseName || crs?.name || '-',
+          sectionOrClass: ex.sectionName || 'A',
+          room: roomNames,
+          lecturerOrSupervisor: lecturer.name,
+          semester: ex.semester || crs?.semester,
+          participantCount: ex.studentCount,
+        };
+      });
+
+      return {
+        title: examTitle,
+        academicYear,
+        academicTerm: 'Ganjil',
+        filterSubtitle: `Pengawas: ${lecturer.name} (NIP: ${lecturer.nip || '-'})`,
+        items,
+        isExam: true,
+        filename: `jadwal_pengawas_${activeExamSubTab.toLowerCase()}_${lecturer.name.replace(/[^a-z0-9]/gi, '_')}.pdf`,
+      };
+    }
+  }, [
+    activeMainTab,
+    activeExamSubTab,
+    mySchedule,
+    myExamSupervisions,
+    lecturer,
+    academicYear,
+    courseMap,
+    timeslotMap,
+    roomMap,
+    classMap,
+  ]);
 
   return (
     <div className="space-y-6">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-slate-900">Jadwal Mengajar Dosen</h2>
-            <Badge variant="indigo" size="sm">
+      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                Portal Dosen
+              </span>
+              <span className="text-xs text-slate-400">•</span>
+              <span className="text-xs text-slate-500 font-medium">T.A. {academicYear} Semester Ganjil</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
               {lecturer.name}
-            </Badge>
+            </h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              NIP: {lecturer.nip || '-'} • Jurusan Teknik Elektro Fakultas Teknik Universitas Mataram
+            </p>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            T.A. {academicYear} • NIP: {lecturer.nip || '-'} • Jurusan Teknik Elektro UNRAM
-          </p>
+
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            <DownloadScheduleButton
+              options={exportOptions}
+              variant="primary"
+              label={`Download Jadwal ${activeMainTab === 'mengajar' ? 'Mengajar' : 'Pengawas ' + activeExamSubTab}`}
+            />
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 no-print">
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+        {/* Primary Tabs: [ Jadwal Mengajar ] vs [ Jadwal Pengawas Ujian ] */}
+        <div className="mt-5 border-b border-slate-200 flex items-center justify-between">
+          <div className="flex space-x-6">
             <button
-              onClick={() => setViewMode('grid')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                viewMode === 'grid' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600'
+              type="button"
+              id="tab-lecturer-mengajar"
+              onClick={() => setActiveMainTab('mengajar')}
+              className={`pb-3 text-sm font-bold transition-all relative ${
+                activeMainTab === 'mengajar'
+                  ? 'text-indigo-700 border-b-2 border-indigo-600'
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              Matriks Tabel
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                <span>Jadwal Mengajar</span>
+                <span className="ml-1.5 px-2 py-0.5 text-[11px] font-semibold rounded-full bg-slate-100 text-slate-700">
+                  {mySchedule.length} Sesi Kuliah
+                </span>
+              </div>
             </button>
+
             <button
-              onClick={() => setViewMode('list')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                viewMode === 'list' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600'
+              type="button"
+              id="tab-lecturer-pengawas"
+              onClick={() => setActiveMainTab('pengawas')}
+              className={`pb-3 text-sm font-bold transition-all relative ${
+                activeMainTab === 'pengawas'
+                  ? 'text-indigo-700 border-b-2 border-indigo-600'
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              Daftar Harian
+              <div className="flex items-center gap-2">
+                <GraduationCap className="w-4 h-4" />
+                <span>Jadwal Pengawas Ujian</span>
+                <span className="ml-1.5 px-2 py-0.5 text-[11px] font-semibold rounded-full bg-slate-100 text-slate-700">
+                  {myExamSupervisions.length} Tugas
+                </span>
+              </div>
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={handlePrint}
-            id="btn-print-lecturer-schedule"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Cetak Jadwal Mengajar</span>
-          </button>
+          {/* Sub-Tabs when in Pengawas Ujian: [ UTS ] [ UAS ] */}
+          {activeMainTab === 'pengawas' && (
+            <div className="flex items-center gap-1 pb-2">
+              <button
+                type="button"
+                id="btn-lecturer-subtab-uts"
+                onClick={() => setActiveExamSubTab('UTS')}
+                className={`px-3 py-1 rounded text-xs font-bold transition-colors ${
+                  activeExamSubTab === 'UTS'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                UTS
+              </button>
+              <button
+                type="button"
+                id="btn-lecturer-subtab-uas"
+                onClick={() => setActiveExamSubTab('UAS')}
+                className={`px-3 py-1 rounded text-xs font-bold transition-colors ${
+                  activeExamSubTab === 'UAS'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                UAS
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3 no-print">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            onClick={() => setSelectedDay('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              selectedDay === 'all'
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-            }`}
-          >
-            Semua Hari
-          </button>
-          {ALL_DAYS.map(day => (
-            <button
-              key={day}
-              onClick={() => setSelectedDay(day)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                selectedDay === day
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-              }`}
-            >
-              {day}
-            </button>
-          ))}
-        </div>
+      {/* TAB 1: JADWAL MENGAJAR */}
+      {activeMainTab === 'mengajar' && (
+        <div className="space-y-4">
+          {/* Controls & Filter */}
+          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setSelectedDay('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  selectedDay === 'all'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                Semua Hari
+              </button>
+              {ALL_DAYS.map((day) => (
+                <button
+                  type="button"
+                  key={day}
+                  onClick={() => setSelectedDay(day)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    selectedDay === day
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  {day}
+                </button>
+              ))}
+            </div>
 
-        <div className="text-xs text-slate-500 font-medium">
-          {mySchedule.length} Jadwal Mengajar Terdaftar
-        </div>
-      </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center bg-slate-100 p-1 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('grid')}
+                  className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
+                    viewMode === 'grid' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+                  }`}
+                >
+                  Matriks Tabel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('list')}
+                  className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
+                    viewMode === 'list' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+                  }`}
+                >
+                  Daftar Baris
+                </button>
+              </div>
+            </div>
+          </div>
 
-      {/* Grid Timetable */}
-      {viewMode === 'grid' && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse min-w-[700px]">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-700">
-                  <th className="p-3.5 w-28 font-bold uppercase text-[11px] text-center border-r border-slate-200">
-                    Waktu / Jam
-                  </th>
-                  {filteredDays.map(day => (
-                    <th key={day} className="p-3.5 font-bold text-center uppercase text-[11px] border-r border-slate-200 last:border-r-0">
-                      {day}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {uniqueSlotIndices.map(slotIdx => {
-                  const sampleSlot = timeslots.find(t => t.slotIndex === slotIdx);
-                  const slotLabel = sampleSlot?.label || `Sesi ${slotIdx}`;
-
-                  return (
-                    <tr key={slotIdx} className="hover:bg-slate-50/40">
-                      <td className="p-3 text-center bg-slate-50/50 border-r border-slate-200 font-mono">
-                        <div className="font-bold text-slate-800 text-xs">{slotLabel}</div>
-                        <div className="text-[10px] text-slate-400 font-sans">Sesi {slotIdx}</div>
-                      </td>
-
-                      {filteredDays.map(day => {
-                        const daySlot = timeslots.find(t => t.day === day && t.slotIndex === slotIdx);
-                        const assignment = daySlot
-                          ? mySchedule.find(a => a.timeslotId === daySlot.id)
-                          : null;
-
-                        const isDayUnavailable = !lecturer.availableDays.includes(day);
-                        const isSlotBlocked = daySlot && lecturer.unavailableSlotIds?.includes(daySlot.id);
-
-                        const crs = assignment ? courseMap.get(assignment.courseId) : null;
-                        const rm = assignment ? roomMap.get(assignment.roomId) : null;
-                        const cls = assignment ? classMap.get(assignment.classId) : null;
-
-                        return (
-                          <td
-                            key={day}
-                            className="p-2 border-r border-slate-200 last:border-r-0 align-top min-w-[150px]"
-                          >
-                            {assignment && crs ? (
-                              <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-slate-900 shadow-2xs space-y-1.5 transition-all hover:border-amber-400 hover:shadow-xs">
-                                <div className="flex items-center justify-between gap-1">
-                                  <span className="font-bold text-xs text-amber-950">{crs.code}</span>
-                                  <Badge variant={crs.type === 'Praktikum' ? 'warning' : 'primary'} size="sm">
-                                    {crs.sks} SKS
-                                  </Badge>
-                                </div>
-                                <div className="font-semibold text-xs text-slate-900 line-clamp-2">
-                                  {crs.name}
-                                </div>
-                                <div className="text-[11px] text-slate-600 flex items-center gap-1">
-                                  <GraduationCap className="w-3 h-3 text-slate-400 shrink-0" />
-                                  <span>Kelas {cls?.code} ({crs.studentCount} Mhs)</span>
-                                </div>
-                                <div className="pt-1 border-t border-amber-100 flex items-center justify-between text-[11px]">
-                                  <span className="font-bold text-indigo-700 flex items-center gap-1">
-                                    <DoorOpen className="w-3 h-3" />
-                                    <span>{rm?.code}</span>
-                                  </span>
-                                  <span className="text-[10px] text-slate-500">{rm?.building}</span>
-                                </div>
-                              </div>
-                            ) : isDayUnavailable || isSlotBlocked ? (
-                              <div className="h-16 flex items-center justify-center text-slate-400 text-[10px] bg-slate-50/60 border border-dashed border-slate-200 rounded-xl">
-                                {isDayUnavailable ? 'Hari Tidak Tersedia' : 'Sesi Diblokir'}
-                              </div>
-                            ) : (
-                              <div className="h-16 flex items-center justify-center text-slate-300 text-[11px] border border-dashed border-slate-100 rounded-xl">
-                                -
-                              </div>
-                            )}
-                          </td>
-                        );
-                      })}
+          {/* Grid View */}
+          {viewMode === 'grid' ? (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse min-w-[700px]">
+                  <thead>
+                    <tr className="bg-slate-800 text-white font-bold border-b border-slate-700">
+                      <th className="p-3 w-28 text-center border-r border-slate-700">Waktu / Jam</th>
+                      {filteredDays.map((day) => (
+                        <th key={day} className="p-3 text-center border-r border-slate-700 last:border-r-0">
+                          {day}
+                        </th>
+                      ))}
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {uniqueSlotIndices.map((slotIdx) => {
+                      const sampleSlot = timeslots.find((t) => t.slotIndex === slotIdx);
+                      const slotLabel = sampleSlot?.label || `Sesi ${slotIdx}`;
+
+                      return (
+                        <tr key={slotIdx} className="hover:bg-slate-50/40">
+                          <td className="p-3 text-center bg-slate-50/70 border-r border-slate-200 font-mono">
+                            <div className="font-bold text-slate-800 text-xs">{slotLabel}</div>
+                            <div className="text-[10px] text-slate-400 font-sans">Sesi {slotIdx}</div>
+                          </td>
+
+                          {filteredDays.map((day) => {
+                            const daySlot = timeslots.find((t) => t.day === day && t.slotIndex === slotIdx);
+                            const primaryAssignment = daySlot
+                              ? mySchedule.find((a) => a.timeslotId === daySlot.id)
+                              : null;
+
+                            const continuingAssignment =
+                              !primaryAssignment && daySlot
+                                ? mySchedule.find((a) => {
+                                    const ts = timeslotMap.get(a.timeslotId);
+                                    if (!ts || ts.day !== day) return false;
+                                    const crs = courseMap.get(a.courseId);
+                                    const courseSks = Math.max(1, Math.round(a.sks || crs?.sks || crs?.credits || 2));
+                                    const timing = calculateCourseTiming(ts, courseSks, timeslots);
+                                    return timing.occupiedSlotIds.includes(daySlot.id);
+                                  })
+                                : null;
+
+                            const crs = primaryAssignment ? courseMap.get(primaryAssignment.courseId) : null;
+                            const rm = primaryAssignment ? roomMap.get(primaryAssignment.roomId) : null;
+                            const cls = primaryAssignment ? classMap.get(primaryAssignment.classId) : null;
+                            const courseSks = primaryAssignment
+                              ? Math.max(1, Math.round(primaryAssignment.sks || crs?.sks || crs?.credits || 2))
+                              : 2;
+                            const timing =
+                              primaryAssignment && daySlot
+                                ? calculateCourseTiming(daySlot, courseSks, timeslots)
+                                : null;
+
+                            return (
+                              <td
+                                key={day}
+                                className="p-2 border-r border-slate-200 last:border-r-0 align-top min-w-[150px]"
+                              >
+                                {primaryAssignment && crs && timing ? (
+                                  <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-200 text-slate-900 shadow-xs space-y-1.5 transition-all hover:border-indigo-400">
+                                    <div className="flex items-center justify-between gap-1">
+                                      <span className="font-bold text-xs text-indigo-950">{crs.code}</span>
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-white text-indigo-700 border border-indigo-200">
+                                        Kelas {cls?.name || 'A'}
+                                      </span>
+                                    </div>
+                                    <div className="font-bold text-xs text-slate-900 line-clamp-2">{crs.name}</div>
+                                    <div className="flex items-center justify-between text-[11px] text-slate-600">
+                                      <div className="flex items-center gap-1">
+                                        <DoorOpen className="w-3 h-3 text-indigo-600" />
+                                        <span className="font-medium">{rm?.name || rm?.code}</span>
+                                      </div>
+                                      <span className="font-bold text-indigo-800 bg-indigo-100/80 px-1.5 py-0.5 rounded text-[10px]">
+                                        {courseSks} SKS
+                                      </span>
+                                    </div>
+                                    <div className="text-[10px] font-mono text-slate-500 pt-1 border-t border-indigo-100/70">
+                                      {timing.sessionRangeLabel} ({timing.timeRangeLabel})
+                                    </div>
+                                  </div>
+                                ) : continuingAssignment ? (
+                                  (() => {
+                                    const contCrs = courseMap.get(continuingAssignment.courseId);
+                                    const contRm = roomMap.get(continuingAssignment.roomId);
+                                    const contSks = Math.max(1, Math.round(continuingAssignment.sks || contCrs?.sks || contCrs?.credits || 2));
+                                    return (
+                                      <div className="p-2.5 rounded-lg bg-slate-50 border border-dashed border-indigo-200 text-slate-700 space-y-1">
+                                        <div className="text-[10px] font-semibold text-indigo-900 line-clamp-1">
+                                          ↳ Lanjutan: {contCrs?.name}
+                                        </div>
+                                        <div className="text-[9px] text-slate-500 flex items-center justify-between">
+                                          <span>{contRm?.code || '-'}</span>
+                                          <span className="font-bold">{contSks} SKS</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })()
+                                ) : (
+                                  <div className="h-14 flex items-center justify-center text-slate-300 text-[11px]">
+                                    -
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            /* List View */
+            <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-800 text-white font-bold border-b border-slate-700">
+                      <th className="p-3 text-center w-12">No</th>
+                      <th className="p-3 w-24">Hari</th>
+                      <th className="p-3 w-36">Jam Kuliah</th>
+                      <th className="p-3 w-24">Kode MK</th>
+                      <th className="p-3">Mata Kuliah</th>
+                      <th className="p-3 text-center w-14">SKS</th>
+                      <th className="p-3 text-center w-16">Kelas</th>
+                      <th className="p-3 w-32">Ruangan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {mySchedule.map((assign, idx) => {
+                      const crs = courseMap.get(assign.courseId);
+                      const ts = timeslotMap.get(assign.timeslotId);
+                      const rm = roomMap.get(assign.roomId);
+                      const cls = classMap.get(assign.classId);
+                      const courseSks = Math.max(1, Math.round(assign.sks || crs?.sks || crs?.credits || 2));
+                      const timing = calculateCourseTiming(ts, courseSks, timeslots);
+
+                      return (
+                        <tr key={assign.id} className="hover:bg-slate-50">
+                          <td className="p-3 text-center font-medium text-slate-400">{idx + 1}</td>
+                          <td className="p-3 font-semibold text-slate-800">{ts?.day || '-'}</td>
+                          <td className="p-3">
+                            {ts ? (
+                              <div>
+                                <div className="font-mono font-bold text-slate-800">{ts.startTime} - {timing.endTime}</div>
+                                <div className="text-[10px] text-slate-500 font-sans mt-0.5">{timing.sessionRangeLabel} ({timing.durationMinutes} mnt)</div>
+                              </div>
+                            ) : '-'}
+                          </td>
+                          <td className="p-3 font-mono font-medium text-slate-600">{crs?.code || '-'}</td>
+                          <td className="p-3 font-semibold text-slate-900">{crs?.name || '-'}</td>
+                          <td className="p-3 text-center font-semibold text-slate-800">{courseSks}</td>
+                          <td className="p-3 text-center">
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-slate-800 font-bold text-xs">
+                              {cls?.name || 'A'}
+                            </span>
+                          </td>
+                          <td className="p-3 font-medium text-slate-800">
+                            {rm?.name || rm?.code || '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* List View */}
-      {viewMode === 'list' && (
+      {/* TAB 2: JADWAL PENGAWAS UJIAN (UTS / UAS) */}
+      {activeMainTab === 'pengawas' && (
         <div className="space-y-4">
-          {filteredDays.map(day => {
-            const daySlots = timeslots.filter(t => t.day === day).map(t => t.id);
-            const dayAssignments = mySchedule.filter(a => daySlots.includes(a.timeslotId));
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-800">
+              Daftar Tugas Pengawas Ujian {activeExamSubTab} (T.A. {academicYear})
+            </h2>
+            <span className="px-2 py-0.5 text-xs font-semibold rounded bg-indigo-100 text-indigo-800">
+              {myExamSupervisions.length} Tugas Pengawas
+            </span>
+          </div>
 
-            return (
-              <div key={day} className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-                <div className="p-4 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-amber-600" />
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">{day}</h3>
-                  </div>
-                  <Badge variant="warning" size="sm">
-                    {dayAssignments.length} Kelas Mengajar
-                  </Badge>
-                </div>
-
-                {dayAssignments.length === 0 ? (
-                  <div className="p-6 text-center text-slate-400 text-xs">
-                    Tidak ada jadwal mengajar pada hari {day}.
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-100">
-                    {dayAssignments.map(asg => {
-                      const crs = courseMap.get(asg.courseId);
-                      const ts = timeslotMap.get(asg.timeslotId);
-                      const rm = roomMap.get(asg.roomId);
-                      const cls = classMap.get(asg.classId);
+          {myExamSupervisions.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-500 space-y-2">
+              <GraduationCap className="w-10 h-10 text-slate-300 mx-auto" />
+              <p className="font-semibold text-slate-700">Tidak ada jadwal pengawas ujian {activeExamSubTab}</p>
+              <p className="text-xs text-slate-400">
+                Nama Anda belum ditugaskan sebagai pengawas pada jadwal ujian {activeExamSubTab} periode ini.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-800 text-white font-bold border-b border-slate-700">
+                      <th className="p-3 text-center w-12">No</th>
+                      <th className="p-3 w-32">Hari / Tanggal</th>
+                      <th className="p-3 w-32">Sesi / Jam</th>
+                      <th className="p-3 w-24">Kode MK</th>
+                      <th className="p-3">Mata Kuliah</th>
+                      <th className="p-3 text-center w-14">Smt</th>
+                      <th className="p-3 text-center w-16">Kelas</th>
+                      <th className="p-3 w-32">Ruang Ujian</th>
+                      <th className="p-3 text-center w-20">Peserta</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {myExamSupervisions.map((ex, idx) => {
+                      const crs = courseMap.get(ex.courseId);
+                      const roomNames = (ex.roomIds || [])
+                        .map((id) => roomMap.get(id)?.name || roomMap.get(id)?.code)
+                        .filter(Boolean)
+                        .join(', ');
 
                       return (
-                        <div key={asg.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-xs text-slate-900">{crs?.code} — {crs?.name}</span>
-                              <Badge variant={crs?.type === 'Praktikum' ? 'warning' : 'primary'} size="sm">
-                                {crs?.type} ({crs?.sks} SKS)
-                              </Badge>
+                        <tr key={ex.id} className="hover:bg-slate-50">
+                          <td className="p-3 text-center font-medium text-slate-400">{idx + 1}</td>
+                          <td className="p-3 font-semibold text-slate-900">
+                            {ex.examDate
+                              ? new Date(ex.examDate).toLocaleDateString('id-ID', {
+                                  weekday: 'long',
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })
+                              : 'Belum Ditentukan'}
+                          </td>
+                          <td className="p-3 font-mono text-slate-700">
+                            {ex.examSessionId === 'ex-ses-1'
+                              ? '08:00 - 09:30'
+                              : ex.examSessionId === 'ex-ses-2'
+                              ? '10:00 - 11:30'
+                              : ex.examSessionId === 'ex-ses-3'
+                              ? '13:00 - 14:30'
+                              : '08:00 - 09:30'}
+                          </td>
+                          <td className="p-3 font-mono font-medium text-slate-600">
+                            {ex.courseCode || crs?.code || '-'}
+                          </td>
+                          <td className="p-3 font-semibold text-slate-900">{ex.courseName || crs?.name || '-'}</td>
+                          <td className="p-3 text-center font-semibold text-slate-700">
+                            {ex.semester || crs?.semester || '-'}
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-slate-800 font-bold text-xs">
+                              {ex.sectionName || 'A'}
+                            </span>
+                          </td>
+                          <td className="p-3 font-medium text-slate-800">
+                            <div className="flex items-center gap-1">
+                              <DoorOpen className="w-3.5 h-3.5 text-slate-400" />
+                              <span>{roomNames || '-'}</span>
                             </div>
-                            <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-4">
-                              <span>Kelas: <strong>{cls?.code}</strong> ({crs?.studentCount} Mahasiswa)</span>
-                              <span>Ruangan: <strong>{rm?.code} ({rm?.name})</strong></span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-3 shrink-0">
-                            <div className="text-right font-mono text-xs font-bold text-slate-800">
-                              {ts?.label}
-                            </div>
-                            <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
-                              <Clock className="w-4 h-4" />
-                            </div>
-                          </div>
-                        </div>
+                          </td>
+                          <td className="p-3 text-center font-semibold text-slate-700">
+                            {ex.studentCount ? `${ex.studentCount} Mhs` : '-'}
+                          </td>
+                        </tr>
                       );
                     })}
-                  </div>
-                )}
+                  </tbody>
+                </table>
               </div>
-            );
-          })}
+            </div>
+          )}
         </div>
       )}
     </div>

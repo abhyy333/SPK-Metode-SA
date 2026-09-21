@@ -26,6 +26,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   History,
+  GraduationCap,
+  LayoutGrid,
 } from 'lucide-react';
 import { CurrentUser, RolePermissions, ScheduleStatus } from '../../types';
 import { Modal } from '../ui/Modal';
@@ -100,7 +102,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {
           group: 'PORTAL MAHASISWA',
           items: [
-            { id: 'schedule', label: 'Jadwal Saya', icon: Calendar },
+            { id: 'schedule', label: 'Jadwal Perkuliahan', icon: Calendar },
+            { id: 'exam-scheduling', label: 'Jadwal Ujian (UTS / UAS)', icon: GraduationCap, badge: 'Ujian' },
             { id: 'packages', label: 'Kurikulum & Paket Semester', icon: Package },
             { id: 'rooms', label: 'Daftar Ruangan & Lab', icon: DoorOpen },
             { id: 'timeslots', label: 'Sesi Waktu Kuliah', icon: Clock },
@@ -116,6 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           items: [
             { id: 'lecturer-dashboard', label: 'Dashboard Dosen', icon: LayoutDashboard },
             { id: 'lecturer-schedule', label: 'Jadwal Mengajar Saya', icon: Calendar },
+            { id: 'exam-scheduling', label: 'Jadwal Ujian & Pengawas', icon: GraduationCap, badge: 'Ujian' },
             { id: 'lecturer-availability', label: 'Ketersediaan & Preferensi', icon: CalendarCheck, badge: 'Penting' },
           ],
         },
@@ -134,22 +138,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
     // Default: ADMIN / TIM PENJADWALAN (Clear, Unified Structure)
     return [
       {
-        group: 'UTAMA',
+        group: 'PENJADWALAN',
         items: [
-          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+          { id: 'dashboard', label: 'Dashboard Utama', icon: LayoutDashboard },
           {
             id: 'scheduling',
-            label: 'Penyusunan & Optimasi Jadwal',
+            label: 'Jadwal Perkuliahan',
             icon: Zap,
-            badge: 'Utama',
+            badge: 'Kuliah',
+            badgeColor: 'indigo',
+          },
+          {
+            id: 'exam-scheduling',
+            label: 'Jadwal Ujian',
+            icon: GraduationCap,
+            badge: 'UTS / UAS',
             badgeColor: 'indigo',
           },
           {
             id: 'schedule',
             label: 'Jadwal Terbit',
             icon: Calendar,
-            badge: hasSchedule && conflictCount > 0 ? `${conflictCount} Bentrok` : hasSchedule ? 'Terjadwal' : undefined,
+            badge: hasSchedule && conflictCount > 0 ? `${conflictCount} Bentrok` : hasSchedule ? 'Resmi' : undefined,
             badgeColor: hasSchedule && conflictCount > 0 ? 'danger' : 'indigo',
+          },
+          {
+            id: 'timetable',
+            label: 'Matriks & Penyesuaian',
+            icon: LayoutGrid,
           },
           {
             id: 'schedule-history',

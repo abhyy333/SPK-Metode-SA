@@ -48,7 +48,7 @@ import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { useToast } from '../components/ui/Toast';
 import { StorageService } from '../services/storageService';
-import { getSessionShortLabel } from '../utils/sessionUtils';
+import { getSessionShortLabel, calculateCourseTiming } from '../utils/sessionUtils';
 import {
   getScheduleRecommendations,
   getSwapRecommendations,
@@ -205,6 +205,9 @@ export const TimetablePage: React.FC<TimetablePageProps> = ({
     const kbkId = off?.kbkId || (course?.kbkIds && course.kbkIds.length > 0 ? course.kbkIds[0] : null);
     const section = off?.sectionName || (off?.code?.includes('-') ? off.code.split('-').pop() : 'A');
     const studentCount = off?.studentCount || off?.enrolledCount || 35;
+    const sks = Math.max(1, Math.round(assignment.sks || off?.sks || course?.sks || course?.credits || 2));
+    const slot = timeslotMap.get(assignment.timeslotId);
+    const timing = calculateCourseTiming(slot, sks, timeslots);
 
     return {
       semester,
@@ -212,6 +215,8 @@ export const TimetablePage: React.FC<TimetablePageProps> = ({
       kbkId,
       section,
       studentCount,
+      sks,
+      timing,
       isPracticum: off?.isPracticum || course?.type === 'Praktikum',
     };
   };
@@ -937,6 +942,11 @@ export const TimetablePage: React.FC<TimetablePageProps> = ({
                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3.5">
                   {dayTimeslots.map((ts) => {
                     const slotAssignments = dayAssignments.filter((a) => a.timeslotId === ts.id);
+                    const continuingAssignments = dayAssignments.filter((a) => {
+                      if (a.timeslotId === ts.id) return false;
+                      const meta = getAssignmentOfferingMeta(a);
+                      return meta.timing.occupiedSlotIds.includes(ts.id);
+                    });
 
                     return (
                       <div
@@ -956,112 +966,157 @@ export const TimetablePage: React.FC<TimetablePageProps> = ({
 
                         {/* Cards in this slot */}
                         <div className="space-y-2 flex-1">
-                          {slotAssignments.length === 0 ? (
+                          {slotAssignments.length === 0 && continuingAssignments.length === 0 ? (
                             <div className="h-full flex items-center justify-center text-[11px] text-slate-400 py-6 border border-dashed border-slate-200 rounded-lg">
                               Kosong (Tersedia)
                             </div>
                           ) : (
-                            slotAssignments.map((a) => {
-                              const course = courseMap.get(a.courseId);
-                              const room = roomMap.get(a.roomId);
-                              const cls = classMap.get(a.classId);
-                              const status = getAssignmentStatus(a.id);
-                              const assignedLecs = getAssignedLecturers(a);
-                              const meta = getAssignmentOfferingMeta(a);
-                              const specificConflicts = conflictItemMap.get(a.id) || [];
+                            <>
+                              {slotAssignments.map((a) => {
+                                const course = courseMap.get(a.courseId);
+                                const room = roomMap.get(a.roomId);
+                                const cls = classMap.get(a.classId);
+                                const status = getAssignmentStatus(a.id);
+                                const assignedLecs = getAssignedLecturers(a);
+                                const meta = getAssignmentOfferingMeta(a);
+                                const specificConflicts = conflictItemMap.get(a.id) || [];
 
-                              return (
-                                <div
-                                  key={a.id}
-                                  onClick={() => handleOpenAssignment(a, 'detail')}
-                                  className={`p-3 rounded-xl border transition-all cursor-pointer text-left relative group ${
-                                    status === 'bentrok'
-                                      ? 'bg-rose-50/95 border-rose-300 hover:border-rose-400 shadow-2xs'
-                                      : status === 'perhatian'
-                                      ? 'bg-amber-50/95 border-amber-300 hover:border-amber-400 shadow-2xs'
-                                      : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-xs'
-                                  }`}
-                                >
-                                  {/* Badges Strip: Semester, Kurikulum, KBK, Status */}
-                                  <div className="flex items-center justify-between gap-1 mb-1.5 flex-wrap">
-                                    <div className="flex items-center gap-1 flex-wrap">
-                                      <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800">
-                                        S{meta.semester}
-                                      </span>
-                                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
-                                        Kur.{meta.curriculumYear}
-                                      </span>
-                                      {meta.kbkId && (
-                                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">
-                                          {meta.kbkId === 'kbk-stl' ? 'STL' : meta.kbkId === 'kbk-komputer' ? 'KOM' : 'ELKOM'}
+                                return (
+                                  <div
+                                    key={a.id}
+                                    onClick={() => handleOpenAssignment(a, 'detail')}
+                                    className={`p-3 rounded-xl border transition-all cursor-pointer text-left relative group ${
+                                      status === 'bentrok'
+                                        ? 'bg-rose-50/95 border-rose-300 hover:border-rose-400 shadow-2xs'
+                                        : status === 'perhatian'
+                                        ? 'bg-amber-50/95 border-amber-300 hover:border-amber-400 shadow-2xs'
+                                        : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-xs'
+                                    }`}
+                                  >
+                                    {/* Badges Strip: Semester, Kurikulum, KBK, SKS, Status */}
+                                    <div className="flex items-center justify-between gap-1 mb-1.5 flex-wrap">
+                                      <div className="flex items-center gap-1 flex-wrap">
+                                        <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                                          S{meta.semester}
                                         </span>
-                                      )}
-                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700">
-                                        Kls {meta.section}
-                                      </span>
-                                    </div>
-
-                                    {status === 'bentrok' ? (
-                                      <Badge variant="danger" size="sm">
-                                        <ShieldAlert className="w-2.5 h-2.5 animate-pulse" />
-                                        BENTROK
-                                      </Badge>
-                                    ) : status === 'perhatian' ? (
-                                      <Badge variant="warning" size="sm">
-                                        <AlertTriangle className="w-2.5 h-2.5" />
-                                        Perhatian
-                                      </Badge>
-                                    ) : (
-                                      <Badge variant="success" size="sm">
-                                        AMAN
-                                      </Badge>
-                                    )}
-                                  </div>
-
-                                  {/* Course Name (Primary, Bold) & Course Code (Secondary, Muted) */}
-                                  <div className="font-bold text-slate-900 text-xs line-clamp-2 leading-snug">
-                                    {course?.name || 'Mata Kuliah'}
-                                  </div>
-                                  <div className="text-[11px] font-mono font-medium text-slate-500 tracking-tight mt-0.5">
-                                    {course?.code || a.courseId}
-                                  </div>
-
-                                  {/* Lecturer & Room Details (Concise & Clean) */}
-                                  <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] text-slate-600 space-y-1">
-                                    <div className="flex items-start gap-1">
-                                      <Users className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                                      <div className="text-[11px] leading-tight line-clamp-1">
-                                        {assignedLecs.length > 0 ? (
-                                          <span className="font-medium text-slate-800">
-                                            {assignedLecs.map((l) => l.name).join(', ')}
-                                          </span>
-                                        ) : (
-                                          <span className="text-amber-700 font-semibold italic">
-                                            Belum Ada Dosen
+                                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                                          Kur.{meta.curriculumYear}
+                                        </span>
+                                        {meta.kbkId && (
+                                          <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">
+                                            {meta.kbkId === 'kbk-stl' ? 'STL' : meta.kbkId === 'kbk-komputer' ? 'KOM' : 'ELKOM'}
                                           </span>
                                         )}
+                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700">
+                                          Kls {meta.section}
+                                        </span>
+                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                          {meta.sks} SKS
+                                        </span>
+                                      </div>
+
+                                      {status === 'bentrok' ? (
+                                        <Badge variant="danger" size="sm">
+                                          <ShieldAlert className="w-2.5 h-2.5 animate-pulse" />
+                                          BENTROK
+                                        </Badge>
+                                      ) : status === 'perhatian' ? (
+                                        <Badge variant="warning" size="sm">
+                                          <AlertTriangle className="w-2.5 h-2.5" />
+                                          Perhatian
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="success" size="sm">
+                                          AMAN
+                                        </Badge>
+                                      )}
+                                    </div>
+
+                                    {/* Course Name & Code */}
+                                    <div className="font-bold text-slate-900 text-xs line-clamp-2 leading-snug">
+                                      {course?.name || 'Mata Kuliah'}
+                                    </div>
+                                    <div className="text-[11px] font-mono font-medium text-slate-500 tracking-tight mt-0.5">
+                                      {course?.code || a.courseId}
+                                    </div>
+
+                                    {/* SKS Duration & Sessions */}
+                                    <div className="mt-1.5 text-[10px] text-slate-600 bg-slate-50 p-1.5 rounded border border-slate-150 flex items-center justify-between">
+                                      <span className="font-semibold text-slate-800">{meta.timing.sessionRangeLabel}</span>
+                                      <span className="font-mono text-indigo-700 font-bold">{meta.timing.timeRangeLabel} ({meta.timing.durationMinutes} mnt)</span>
+                                    </div>
+
+                                    {/* Lecturer & Room Details */}
+                                    <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] text-slate-600 space-y-1">
+                                      <div className="flex items-start gap-1">
+                                        <Users className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                                        <div className="text-[11px] leading-tight line-clamp-1">
+                                          {assignedLecs.length > 0 ? (
+                                            <span className="font-medium text-slate-800">
+                                              {assignedLecs.map((l) => l.name).join(', ')}
+                                            </span>
+                                          ) : (
+                                            <span className="text-amber-700 font-semibold italic">
+                                              Belum Ada Dosen
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
+                                        <span className="font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
+                                          {meta.studentCount} Mhs
+                                        </span>
+                                        <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
+                                          {room?.code}
+                                        </span>
                                       </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
-                                      <span className="font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
-                                        {meta.studentCount} Mhs
+                                    {/* Conflict warning preview badge */}
+                                    {specificConflicts.length > 0 && (
+                                      <div className="mt-2 text-[10px] text-rose-700 font-medium bg-rose-100/80 px-2 py-1 rounded-md line-clamp-1">
+                                        {specificConflicts[0].description}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+
+                              {/* Multi-Session Continuation Cards */}
+                              {continuingAssignments.map((a) => {
+                                const course = courseMap.get(a.courseId);
+                                const room = roomMap.get(a.roomId);
+                                const meta = getAssignmentOfferingMeta(a);
+                                const status = getAssignmentStatus(a.id);
+                                return (
+                                  <div
+                                    key={`cont-${a.id}-${ts.id}`}
+                                    onClick={() => handleOpenAssignment(a, 'detail')}
+                                    className={`p-2.5 rounded-xl border border-dashed transition-all cursor-pointer text-left ${
+                                      status === 'bentrok'
+                                        ? 'bg-rose-50/80 border-rose-300 hover:border-rose-400'
+                                        : 'bg-indigo-50/50 border-indigo-200 hover:bg-indigo-100/60'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-1 text-[10px]">
+                                      <span className="font-semibold text-indigo-950 truncate">
+                                        ↳ Lanjutan: {course?.name}
                                       </span>
-                                      <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
+                                      <span className="font-bold text-indigo-700 shrink-0">
+                                        {meta.sks} SKS
+                                      </span>
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 mt-1 flex items-center justify-between">
+                                      <span>Mulai: {meta.timing.sessionRangeLabel}</span>
+                                      <span className="font-mono font-bold text-slate-700 bg-white/80 px-1 py-0.5 rounded border border-slate-200">
                                         {room?.code}
                                       </span>
                                     </div>
                                   </div>
-
-                                  {/* Conflict warning preview badge */}
-                                  {specificConflicts.length > 0 && (
-                                    <div className="mt-2 text-[10px] text-rose-700 font-medium bg-rose-100/80 px-2 py-1 rounded-md line-clamp-1">
-                                      {specificConflicts[0].description}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })
+                                );
+                              })}
+                            </>
                           )}
                         </div>
                       </div>
@@ -1129,11 +1184,18 @@ export const TimetablePage: React.FC<TimetablePageProps> = ({
                         .filter((t) => t.day === selectedDayForRoomView && t.isActive)
                         .sort((a, b) => a.startTime.localeCompare(b.startTime))
                         .map((ts) => {
-                          const assignment = filteredAssignments.find(
+                          const primaryAssignment = filteredAssignments.find(
                             (a) => a.roomId === room.id && a.timeslotId === ts.id
                           );
+                          const continuingAssignment = !primaryAssignment ? filteredAssignments.find(
+                            (a) => {
+                              if (a.roomId !== room.id) return false;
+                              const meta = getAssignmentOfferingMeta(a);
+                              return meta.timing.occupiedSlotIds.includes(ts.id);
+                            }
+                          ) : null;
 
-                          if (!assignment) {
+                          if (!primaryAssignment && !continuingAssignment) {
                             return (
                               <td key={ts.id} className="p-2 text-center text-slate-300 font-light">
                                 -
@@ -1141,15 +1203,40 @@ export const TimetablePage: React.FC<TimetablePageProps> = ({
                             );
                           }
 
-                          const course = courseMap.get(assignment.courseId);
-                          const assignedLecs = getAssignedLecturers(assignment);
-                          const meta = getAssignmentOfferingMeta(assignment);
-                          const status = getAssignmentStatus(assignment.id);
+                          if (continuingAssignment) {
+                            const course = courseMap.get(continuingAssignment.courseId);
+                            const meta = getAssignmentOfferingMeta(continuingAssignment);
+                            const status = getAssignmentStatus(continuingAssignment.id);
+                            return (
+                              <td key={ts.id} className="p-2">
+                                <div
+                                  onClick={() => handleOpenAssignment(continuingAssignment, 'detail')}
+                                  className={`p-2 rounded-xl border border-dashed cursor-pointer transition-all ${
+                                    status === 'bentrok'
+                                      ? 'bg-rose-50/80 border-rose-300 text-rose-950'
+                                      : 'bg-indigo-50/60 border-indigo-200 hover:bg-indigo-100/70 text-indigo-950'
+                                  }`}
+                                >
+                                  <div className="text-[10px] font-bold text-indigo-900 line-clamp-1">
+                                    ↳ Lanjutan: {course?.name}
+                                  </div>
+                                  <div className="text-[9px] text-slate-500 font-mono mt-0.5">
+                                    {meta.sks} SKS ({meta.timing.sessionRangeLabel})
+                                  </div>
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          const course = courseMap.get(primaryAssignment.courseId);
+                          const assignedLecs = getAssignedLecturers(primaryAssignment);
+                          const meta = getAssignmentOfferingMeta(primaryAssignment);
+                          const status = getAssignmentStatus(primaryAssignment.id);
 
                           return (
                             <td key={ts.id} className="p-2">
                               <div
-                                onClick={() => handleOpenAssignment(assignment, 'detail')}
+                                onClick={() => handleOpenAssignment(primaryAssignment, 'detail')}
                                 className={`p-2.5 rounded-xl border cursor-pointer transition-all ${
                                   status === 'bentrok'
                                     ? 'bg-rose-50 border-rose-300 text-rose-950'
@@ -1161,18 +1248,26 @@ export const TimetablePage: React.FC<TimetablePageProps> = ({
                                 <div className="flex items-start justify-between gap-1 mb-1">
                                   <div className="min-w-0 flex-1">
                                     <div className="font-bold text-[11px] text-slate-900 line-clamp-1 leading-tight">
-                                      {course?.name || assignment.courseId}
+                                      {course?.name || primaryAssignment.courseId}
                                     </div>
                                     <div className="text-[10px] font-mono font-medium text-slate-500 mt-0.5">
                                       {course?.code}
                                     </div>
                                   </div>
-                                  <span className="text-[9px] font-bold px-1 rounded bg-indigo-100 text-indigo-800 shrink-0">
-                                    S{meta.semester}
-                                  </span>
+                                  <div className="flex items-center gap-0.5 shrink-0">
+                                    <span className="text-[9px] font-bold px-1 rounded bg-indigo-100 text-indigo-800">
+                                      S{meta.semester}
+                                    </span>
+                                    <span className="text-[9px] font-bold px-1 rounded bg-emerald-100 text-emerald-800">
+                                      {meta.sks} SKS
+                                    </span>
+                                  </div>
                                 </div>
                                 <div className="text-[10px] text-slate-700 line-clamp-1 font-medium mt-1">
                                   Kelas {meta.section} • {assignedLecs.map((l) => l.name).join(', ') || 'Belum Ada Dosen'}
+                                </div>
+                                <div className="text-[9px] text-indigo-600 font-medium mt-0.5 font-mono">
+                                  {meta.timing.sessionRangeLabel} ({meta.timing.timeRangeLabel})
                                 </div>
                               </div>
                             </td>
@@ -1214,7 +1309,12 @@ export const TimetablePage: React.FC<TimetablePageProps> = ({
                   return (
                     <tr key={assign.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-800">
-                        {slot ? `${slot.day}, ${slot.label}` : '-'}
+                        {slot ? (
+                          <div>
+                            <div className="font-bold text-slate-900">{slot.day}, {slot.startTime} - {meta.timing.endTime}</div>
+                            <div className="text-[10px] text-slate-500 font-sans mt-0.5">{meta.timing.sessionRangeLabel} • {meta.sks} SKS ({meta.timing.durationMinutes} mnt)</div>
+                          </div>
+                        ) : '-'}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">

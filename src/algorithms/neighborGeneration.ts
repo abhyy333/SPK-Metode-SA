@@ -1,4 +1,5 @@
 import { ScheduleAssignment, Course, Room, Timeslot } from '../types';
+import { isTimeslotValidForSks, calculateCourseTiming } from '../utils/sessionUtils';
 
 export type NeighborMoveType = 'MOVE_TIMESLOT' | 'MOVE_ROOM' | 'MOVE_BOTH' | 'SWAP_SLOTS';
 
@@ -11,10 +12,10 @@ export interface NeighborResult {
 /**
  * Generates a neighbor solution from current schedule.
  * Strategies:
- * 1. Move a course assignment to a new timeslot (if timeslot not locked)
+ * 1. Move a course assignment to a new timeslot (respecting course SKS consecutive sessions)
  * 2. Move a course assignment to a new room (if room not locked)
- * 3. Move both timeslot and room (respecting lock flags)
- * 4. Swap timeslots between two unlocked assignments
+ * 3. Move both timeslot and room (respecting lock flags & SKS duration)
+ * 4. Swap timeslots between two unlocked assignments (valid for both SKS)
  */
 export function generateNeighbor(
   currentAssignments: ScheduleAssignment[],
@@ -85,6 +86,10 @@ export function generateNeighbor(
 
   const targetAssignment = neighbor[targetIndex];
   const targetCourse = courses.find(c => c.id === targetAssignment.courseId);
+  const targetSks = Math.max(
+    1,
+    Math.round(targetAssignment.sks || targetCourse?.sks || targetCourse?.credits || 2)
+  );
 
   const isTimeslotLocked = isSlotLocked(targetAssignment);
   const isRoomLocked = isRoomLockedFn(targetAssignment);
@@ -94,15 +99,26 @@ export function generateNeighbor(
   let moveType: NeighborMoveType = 'MOVE_TIMESLOT';
   const modifiedCourseIds = [targetAssignment.courseId];
 
+  // Filter timeslots valid for course SKS consecutive slots
+  const validTimeslotsForSks = activeTimeslots.filter(t =>
+    isTimeslotValidForSks(t, targetSks, activeTimeslots)
+  );
+  const candidateTimeslots = validTimeslotsForSks.length > 0 ? validTimeslotsForSks : activeTimeslots;
+
   if (!isTimeslotLocked && (rand < 0.40 || isRoomLocked)) {
     // Strategy 1: Change Timeslot
     moveType = 'MOVE_TIMESLOT';
-    const otherTimeslots = activeTimeslots.filter(t => t.id !== targetAssignment.timeslotId);
+    const otherTimeslots = candidateTimeslots.filter(t => t.id !== targetAssignment.timeslotId);
     if (otherTimeslots.length > 0) {
       const newSlot = otherTimeslots[Math.floor(rng() * otherTimeslots.length)];
+      const timing = calculateCourseTiming(newSlot, targetSks, activeTimeslots);
       neighbor[targetIndex] = {
         ...targetAssignment,
         timeslotId: newSlot.id,
+        sks: targetSks,
+        durationMinutes: timing.durationMinutes,
+        endTime: timing.endTime,
+        occupiedSlotIds: timing.occupiedSlotIds,
       };
     }
   } else if (!isRoomLocked && (rand < 0.65 || isTimeslotLocked)) {
@@ -126,20 +142,26 @@ export function generateNeighbor(
   } else if (!isTimeslotLocked && !isRoomLocked && rand < 0.85) {
     // Strategy 3: Change both Room and Timeslot
     moveType = 'MOVE_BOTH';
-    const otherTimeslots = activeTimeslots.filter(t => t.id !== targetAssignment.timeslotId);
+    const otherTimeslots = candidateTimeslots.filter(t => t.id !== targetAssignment.timeslotId);
     const otherRooms = activeRooms.filter(r => r.id !== targetAssignment.roomId);
 
     const newSlot = otherTimeslots.length > 0
       ? otherTimeslots[Math.floor(rng() * otherTimeslots.length)]
-      : activeTimeslots[0];
+      : candidateTimeslots[0];
     const newRoom = otherRooms.length > 0
       ? otherRooms[Math.floor(rng() * otherRooms.length)]
       : activeRooms[0];
+
+    const timing = calculateCourseTiming(newSlot, targetSks, activeTimeslots);
 
     neighbor[targetIndex] = {
       ...targetAssignment,
       timeslotId: newSlot.id,
       roomId: newRoom.id,
+      sks: targetSks,
+      durationMinutes: timing.durationMinutes,
+      endTime: timing.endTime,
+      occupiedSlotIds: timing.occupiedSlotIds,
     };
   } else if (!isTimeslotLocked) {
     // Strategy 4: Swap timeslot with another assignment that also has unlocked timeslot
@@ -148,19 +170,52 @@ export function generateNeighbor(
       idx => idx !== targetIndex && !isSlotLocked(neighbor[idx])
     );
 
-    if (otherUnlockedForSwap.length > 0) {
-      const swapIndex = otherUnlockedForSwap[Math.floor(rng() * otherUnlockedForSwap.length)];
+    // Prefer swaps where both courses fit in each other's start timeslot
+    const timeslotMap = new Map(activeTimeslots.map(t => [t.id, t]));
+    const validSwapIndices = otherUnlockedForSwap.filter(idx => {
+      const otherA = neighbor[idx];
+      const otherC = courses.find(c => c.id === otherA.courseId);
+      const otherSks = Math.max(1, Math.round(otherA.sks || otherC?.sks || otherC?.credits || 2));
+      const slotForTarget = timeslotMap.get(otherA.timeslotId);
+      const slotForOther = timeslotMap.get(targetAssignment.timeslotId);
+      return (
+        isTimeslotValidForSks(slotForTarget, targetSks, activeTimeslots) &&
+        isTimeslotValidForSks(slotForOther, otherSks, activeTimeslots)
+      );
+    });
+
+    const pool = validSwapIndices.length > 0 ? validSwapIndices : otherUnlockedForSwap;
+
+    if (pool.length > 0) {
+      const swapIndex = pool[Math.floor(rng() * pool.length)];
       const otherAssignment = neighbor[swapIndex];
+      const otherCourse = courses.find(c => c.id === otherAssignment.courseId);
+      const otherSks = Math.max(1, Math.round(otherAssignment.sks || otherCourse?.sks || otherCourse?.credits || 2));
+
       modifiedCourseIds.push(otherAssignment.courseId);
 
       const tempSlot = targetAssignment.timeslotId;
+      const targetSlotObj = timeslotMap.get(otherAssignment.timeslotId);
+      const otherSlotObj = timeslotMap.get(tempSlot);
+
+      const timingTarget = calculateCourseTiming(targetSlotObj, targetSks, activeTimeslots);
+      const timingOther = calculateCourseTiming(otherSlotObj, otherSks, activeTimeslots);
+
       neighbor[targetIndex] = {
         ...targetAssignment,
         timeslotId: otherAssignment.timeslotId,
+        sks: targetSks,
+        durationMinutes: timingTarget.durationMinutes,
+        endTime: timingTarget.endTime,
+        occupiedSlotIds: timingTarget.occupiedSlotIds,
       };
       neighbor[swapIndex] = {
         ...otherAssignment,
         timeslotId: tempSlot,
+        sks: otherSks,
+        durationMinutes: timingOther.durationMinutes,
+        endTime: timingOther.endTime,
+        occupiedSlotIds: timingOther.occupiedSlotIds,
       };
     }
   }

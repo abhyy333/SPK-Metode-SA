@@ -20,6 +20,8 @@ export type ConflictCategory =
   | 'LECTURER_UNAVAILABLE'
   | 'ROOM_TYPE_MISMATCH'
   | 'LOCKED_VIOLATION'
+  | 'DAY_BOUNDARY_EXCEEDED'
+  | 'SESSION_OVERFLOW'
   | 'LECTURER_DENSITY'
   | 'PACKAGE_DENSITY'
   | 'TIME_UNFAVORABLE'
@@ -92,6 +94,11 @@ export interface Course {
   classificationReason?: string;
   adminNotes?: string;
   isPackageCourse?: boolean; // True for semester 1-4 common package
+  isSchedulable?: boolean; // false for KKN / LPPM managed courses
+  is_schedulable?: boolean; // explicit flag requested: is_schedulable = false
+  isLppmManaged?: boolean; // true for KKN (dikelola oleh LPPM)
+  dijadwalkanJurusan?: boolean; // false for KKN (tidak dijadwalkan jurusan)
+  scopeKbk?: 'all' | string[]; // 'all' = Berlaku untuk Semua KBK
   prerequisites?: string[]; // Course codes or IDs required
   durationMinutes?: number; // e.g. 100 min (2 SKS) or 150 min (3 SKS)
   classId?: string; // Target default class group if legacy
@@ -437,7 +444,11 @@ export interface ScheduleAssignment {
   lecturerIds?: string[]; // All assigned lecturers
   classId: string;
   roomId: string;
-  timeslotId: string;
+  timeslotId: string; // The primary starting timeslot
+  sks?: number;
+  durationMinutes?: number;
+  endTime?: string;
+  occupiedSlotIds?: string[];
   isFixed?: boolean;
   isLocked?: boolean;
   lockConfig?: CourseOfferingLockConfig;
@@ -500,18 +511,28 @@ export interface OptimizationObjectiveBreakdown {
   softConstraintPenalty: number;
 }
 
+export type SchedulePublicationStatus = 'Draft' | 'Diterbitkan' | 'Digantikan' | 'draft' | 'published' | 'archived' | 'optimized';
+
 export interface ScheduleVersion {
   id: string;
+  scheduleType?: 'perkuliahan' | 'uts' | 'uas' | 'lecture';
   academicYear: string;
   academicTerm: string;
   versionNumber: number;
   name: string;
-  status: 'draft' | 'optimized' | 'published' | 'archived';
+  status: SchedulePublicationStatus;
   createdAt: string;
   createdBy: string;
+  publishedAt?: string;
+  publishedBy?: string;
   optimizationRunId?: string;
   scheduleAssignments: ScheduleAssignment[];
   notes?: string;
+  summary?: {
+    totalAssignments?: number;
+    totalOfferings?: number;
+    conflictCount?: number;
+  };
 }
 
 export interface ScheduleSnapshot {
@@ -672,7 +693,7 @@ export interface CourseEquivalence {
 // ==========================================
 
 export type KRSStatus = 'draft' | 'submitted' | 'approved' | 'completed';
-export type AcademicTerm = 'ganjil' | 'genap';
+export type AcademicTerm = 'ganjil' | 'genap' | 'Ganjil' | 'Genap';
 export type KRSEnrollmentType = 'package' | 'elective' | 'retake' | 'additional';
 export type KRSItemStatus = 'planned' | 'enrolled' | 'completed' | 'cancelled';
 export type GradeStatus = 'incomplete' | 'complete';
@@ -989,5 +1010,119 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canAccessResearchMode: false,
   },
 };
+
+// ==========================================
+// PENJADWALAN UJIAN (UTS / UAS) MODULE TYPES
+// ==========================================
+
+export type ExamType = 'UTS' | 'UAS';
+export type ExamOfferingStatus = 'draft' | 'scheduled' | 'published';
+
+export interface ExamSession {
+  id: string;
+  name: string; // e.g. 'Sesi 1', 'Sesi 2', 'Sesi 3'
+  startTime: string; // '07:30'
+  endTime: string; // '09:00'
+  durationMinutes: number; // 90
+  isActive: boolean;
+  orderIndex: number;
+}
+
+export interface ExamOffering {
+  id: string;
+  examType: ExamType;
+  academicYear: string; // e.g. '2026/2027'
+  academicTerm: AcademicTerm; // 'Ganjil' | 'Genap'
+
+  courseId: string;
+  courseCode: string;
+  courseName: string;
+  curriculumYear: number;
+  semester: number;
+  kbkId?: string;
+
+  sectionName?: string; // e.g. 'A', 'B', 'C', 'D'
+  studentCount: number; // Jumlah peserta ujian
+
+  examDate?: string; // 'YYYY-MM-DD'
+  examSessionId?: string;
+  roomIds: string[]; // Master Room IDs
+
+  supervisorLecturerIds: string[]; // Pengawas Ujian (Admin choice)
+  lecturerIds: string[]; // Dosen Pengampu (for display)
+
+  durationMinutes?: number; // Configurable duration per exam
+  status: ExamOfferingStatus;
+  notes?: string;
+}
+
+export type ExamConflictType =
+  | 'ROOM_OVERLAP'
+  | 'SUPERVISOR_OVERLAP'
+  | 'ROOM_CAPACITY'
+  | 'SEMESTER_POTENTIAL_CONFLICT'
+  | 'UNASSIGNED_ROOM'
+  | 'UNASSIGNED_SESSION'
+  | 'UNASSIGNED_SUPERVISOR';
+
+export interface ExamConflictItem {
+  id: string;
+  type: ExamConflictType;
+  severity: ConflictSeverity;
+  title: string;
+  description: string;
+  examOfferingIds: string[];
+  date?: string;
+  sessionId?: string;
+  roomId?: string;
+  supervisorId?: string;
+}
+
+export interface ExamVersion {
+  id: string;
+  examType: ExamType;
+  academicYear: string;
+  academicTerm: AcademicTerm;
+  versionName: string; // e.g. "2026/2027 Ganjil — UTS — Versi 2 (Diterbitkan)"
+  versionNumber: number;
+  status: 'Draft' | 'Diterbitkan' | 'Digantikan' | 'draft' | 'published' | 'archived';
+  createdAt: string;
+  createdBy: string;
+  publishedAt?: string;
+  publishedBy?: string;
+  offerings: ExamOffering[];
+  summary: {
+    totalExams: number;
+    scheduledExams: number;
+    totalStudents: number;
+    conflictCount: number;
+  };
+  notes?: string;
+}
+
+export interface ExamChangeLog {
+  id: string;
+  examType: ExamType;
+  academicYear: string;
+  academicTerm: AcademicTerm;
+  action: string;
+  description: string;
+  before?: any;
+  after?: any;
+  changedBy: string;
+  changedAt: string;
+  examOfferingId?: string;
+}
+
+export interface ExamConfig {
+  academicYear: string;
+  academicTerm: AcademicTerm;
+  examType: ExamType;
+  defaultDurationMinutes: number; // UTS = 90, UAS = 120
+  maxStudentsPerSection: number; // default 40
+  examStartDate: string; // '2026-10-12'
+  examEndDate: string; // '2026-10-23'
+  excludeWeekends: boolean;
+}
 
 

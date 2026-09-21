@@ -62,8 +62,14 @@ const LecturerAvailabilityPage = lazyWithRetry(() => import('./pages/lecturer/Le
 // Pages - Student Portal (Lazy Loaded)
 const StudentSchedulePage = lazyWithRetry(() => import('./pages/student/StudentSchedulePage'), 'StudentSchedulePage');
 
+// Pages - Published Schedule Portal (Separated Lecture & Exam with Versioning & Download)
+const PublishedSchedulePage = lazyWithRetry(() => import('./pages/PublishedSchedulePage'), 'PublishedSchedulePage');
+
 // Pages - History & Snapshots (Lazy Loaded)
 const ScheduleHistoryPage = lazyWithRetry(() => import('./pages/ScheduleHistoryPage'), 'ScheduleHistoryPage');
+
+// Pages - Exam Scheduling (UTS / UAS)
+const ExamSchedulingPage = lazyWithRetry(() => import('./pages/exam/ExamSchedulingPage'), 'ExamSchedulingPage');
 
 // Algorithms
 import { generateInitialSchedule } from './algorithms/initialSchedule';
@@ -215,9 +221,15 @@ export default function App() {
       setScheduleStatus('draft');
       showToast('info', 'Status Jadwal Diubah ke Draft', 'Jadwal kini dalam tahap revisi internal.');
     } else {
+      const activeVer = StorageService.getActiveScheduleVersion();
+      if (activeVer) {
+        StorageService.publishScheduleVersion(activeVer.id, currentUser.name || 'Administrator');
+      } else if (currentSchedule && currentSchedule.length > 0) {
+        StorageService.createScheduleVersion('Versi 3', currentSchedule, 'Diterbitkan', currentUser.name || 'Administrator');
+      }
       StorageService.setScheduleStatus('published');
       setScheduleStatus('published');
-      showToast('success', 'Jadwal Resmi Dipublikasikan', 'Jadwal perkuliahan telah diterbitkan untuk dosen dan jurusan.');
+      showToast('success', 'Jadwal Resmi Dipublikasikan', 'Jadwal perkuliahan telah diterbitkan untuk dosen dan mahasiswa.');
     }
   };
 
@@ -905,7 +917,37 @@ export default function App() {
                 )
               )}
 
-              {/* 3. TIMETABLE SCHEDULE & RECOMMENDATIONS */}
+              {/* JADWAL UJIAN (UTS / UAS) */}
+              {(activeView === 'exam-scheduling' || activeView === 'exam-schedule') && (
+                currentUser.role === 'admin' ? (
+                  <ExamSchedulingPage />
+                ) : currentUser.role === 'student' ? (
+                  <StudentSchedulePage
+                    currentUser={currentUser}
+                    currentSchedule={currentSchedule}
+                    courses={courses}
+                    lecturers={lecturers}
+                    classes={classes}
+                    rooms={rooms}
+                    timeslots={timeslots}
+                    scheduleStatus={scheduleStatus}
+                    academicYear={academicYear}
+                  />
+                ) : (
+                  <LecturerSchedulePage
+                    lecturer={activeLecturerEntity || lecturers[0]}
+                    courses={courses}
+                    schedule={currentSchedule || []}
+                    timeslots={timeslots}
+                    rooms={rooms}
+                    classes={classes}
+                    scheduleStatus={scheduleStatus}
+                    academicYear={academicYear}
+                  />
+                )
+              )}
+
+              {/* 3. PUBLISHED SCHEDULE (Separated Kuliah & Ujian with Versions & Download) */}
               {activeView === 'schedule' && (
                 currentUser.role === 'student' ? (
                   <StudentSchedulePage
@@ -920,22 +962,39 @@ export default function App() {
                     academicYear={academicYear}
                   />
                 ) : (
-                  <TimetablePage
-                    currentSchedule={currentSchedule}
+                  <PublishedSchedulePage
+                    currentUser={currentUser}
                     courses={courses}
                     lecturers={lecturers}
                     classes={classes}
                     rooms={rooms}
                     timeslots={timeslots}
-                    conflicts={activeConflicts}
-                    weights={weights}
-                    onManualMoveAssignment={handleManualMoveAssignment}
-                    onSwapAssignments={handleSwapAssignments}
-                    changeLogs={changeLogs}
-                    onClearLogs={handleClearLogs}
-                    onUpdateAssignmentLecturers={handleUpdateAssignmentLecturers}
+                    academicYear={academicYear}
+                    onRefreshSchedule={() => {
+                      const sch = StorageService.getCurrentSchedule();
+                      if (sch) setCurrentSchedule(sch);
+                    }}
                   />
                 )
+              )}
+
+              {/* 3B. TIMETABLE MATRIX & MANUAL ADJUSTMENT */}
+              {activeView === 'timetable' && (
+                <TimetablePage
+                  currentSchedule={currentSchedule}
+                  courses={courses}
+                  lecturers={lecturers}
+                  classes={classes}
+                  rooms={rooms}
+                  timeslots={timeslots}
+                  conflicts={activeConflicts}
+                  weights={weights}
+                  onManualMoveAssignment={handleManualMoveAssignment}
+                  onSwapAssignments={handleSwapAssignments}
+                  changeLogs={changeLogs}
+                  onClearLogs={handleClearLogs}
+                  onUpdateAssignmentLecturers={handleUpdateAssignmentLecturers}
+                />
               )}
 
               {/* 4. CONFLICT ANALYSIS */}
@@ -958,6 +1017,7 @@ export default function App() {
                   timeslots={timeslots}
                   schedule={currentSchedule || []}
                   permissions={permissions}
+                  currentUser={currentUser}
                   onSaveTimeslot={handleSaveTimeslot}
                   onDeleteTimeslot={handleDeleteTimeslot}
                   onToggleTimeslot={handleToggleTimeslot}

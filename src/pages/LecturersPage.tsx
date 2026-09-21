@@ -406,9 +406,9 @@ export const LecturersPage: React.FC<LecturersPageProps> = ({
             className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
           >
             <option value="all">Semua Preferensi Waktu</option>
-            <option value="Pagi">Pagi (07:30 - 11:00)</option>
-            <option value="Siang">Siang (11:10 - 15:10)</option>
-            <option value="Sore">Sore (15:20 - 17:00)</option>
+            <option value="Pagi">Pagi (07:50 - 12:00)</option>
+            <option value="Siang">Siang (12:00 - 15:20)</option>
+            <option value="Sore">Sore (15:20 - 17:50)</option>
             <option value="Fleksibel">Fleksibel</option>
           </select>
 
@@ -691,9 +691,9 @@ export const LecturersPage: React.FC<LecturersPageProps> = ({
                     onChange={(e) => setTimePreference(e.target.value as TimePreference)}
                     className="w-full px-3 py-2 rounded-xl text-xs sm:text-sm border border-slate-200 bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
                   >
-                    <option value="Pagi">Pagi (Sesi 1 - 2 / 07:30 - 11:00)</option>
-                    <option value="Siang">Siang (Sesi 3 - 4 / 11:10 - 15:10)</option>
-                    <option value="Sore">Sore (Sesi 5 / 15:20 - 17:00)</option>
+                    <option value="Pagi">Pagi (Sesi 1 - 5 / 07:50 - 12:00)</option>
+                    <option value="Siang">Siang (Sesi 6 - 9 / 12:00 - 15:20)</option>
+                    <option value="Sore">Sore (Sesi 10 - 12 / 15:20 - 17:50)</option>
                     <option value="Fleksibel">Fleksibel (Semua Sesi)</option>
                   </select>
                 </div>

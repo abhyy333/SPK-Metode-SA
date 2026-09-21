@@ -11,6 +11,11 @@ import {
   CourseOffering,
   ScheduleGroup,
 } from '../types';
+import {
+  calculateCourseTiming,
+  CourseTimingInfo,
+  doTimeIntervalsOverlap,
+} from '../utils/sessionUtils';
 
 export interface ConflictDetectionResult {
   hardConflictsCount: number;
@@ -22,16 +27,17 @@ export interface ConflictDetectionResult {
 
 /**
  * DETEKSI KONFLIK PENJADWALAN MATA KULIAH TEKNIK ELEKTRO
- * Berdasarkan:
- * 1. Dosen Pengampu (Hard)
- * 2. Penggunaan Ruangan (Hard)
- * 3. Paket Semester & Schedule Group (Hard: MK satu paket tidak boleh bentrok)
- * 4. Kapasitas Ruangan vs Proyeksi Peserta (expectedEnrollment) (Hard)
- * 5. Ketersediaan Slot Waktu Dosen (Hard)
- * 6. Kesesuaian Tipe & Fasilitas Ruangan (Hard)
- * 7. Distribusi Jadwal Dosen & Paket per Hari (Soft)
- * 8. Preferensi Waktu Dosen & Jam Kuliah Ideal (Soft)
- * 9. Minimasi Perpindahan Ruang Dosen (Soft)
+ * Berdasarkan Multi-Session Interval Overlap (1 SKS = 50 Menit = 1 Sesi):
+ * 1. Validasi Batas Sesi Hari (Hard: SKS tidak boleh melebihi sesi terakhir hari)
+ * 2. Dosen Pengampu (Hard: Tidak boleh overlap di salah satu sesi yang ditempati)
+ * 3. Penggunaan Ruangan (Hard: Ruangan tidak boleh overlap di salah satu sesi)
+ * 4. Paket Semester & Schedule Group (Hard: MK satu paket tidak boleh bentrok)
+ * 5. Kapasitas Ruangan vs Proyeksi Peserta (expectedEnrollment) (Hard)
+ * 6. Ketersediaan Slot Waktu Dosen sepanjang durasi SKS (Hard)
+ * 7. Kesesuaian Tipe & Fasilitas Ruangan (Hard)
+ * 8. Distribusi Jadwal Dosen & Paket per Hari (Soft)
+ * 9. Preferensi Waktu Dosen & Jam Kuliah Ideal (Soft)
+ * 10. Minimasi Perpindahan Ruang Dosen (Soft)
  */
 export function detectConflicts(
   assignments: ScheduleAssignment[],
@@ -58,70 +64,25 @@ export function detectConflicts(
   const offeringMap = new Map<string, CourseOffering>(offerings.map(o => [o.id, o]));
   const packageMap = new Map<string, CurriculumPackage>(curriculumPackages.map(p => [p.id, p]));
 
-  // Index assignments by timeslot, lecturer, room, and scheduleGroup/package
-  const schedulesByTimeslot = new Map<string, ScheduleAssignment[]>();
-  const schedulesByLecturer = new Map<string, ScheduleAssignment[]>();
-  const schedulesByRoom = new Map<string, ScheduleAssignment[]>();
-
-  for (let i = 0; i < assignments.length; i++) {
-    const a = assignments[i];
-    
-    // Group by timeslot
-    let tsList = schedulesByTimeslot.get(a.timeslotId);
-    if (!tsList) {
-      tsList = [];
-      schedulesByTimeslot.set(a.timeslotId, tsList);
-    }
-    tsList.push(a);
-
-    // Group by lecturer (support multiple lecturers)
-    const assignedLecIds = (a.lecturerIds && a.lecturerIds.length > 0)
-      ? a.lecturerIds
-      : (a.lecturerId ? [a.lecturerId] : []);
-
-    for (const lid of assignedLecIds) {
-      let lecList = schedulesByLecturer.get(lid);
-      if (!lecList) {
-        lecList = [];
-        schedulesByLecturer.set(lid, lecList);
-      }
-      lecList.push(a);
-    }
-
-    // Group by room
-    let rList = schedulesByRoom.get(a.roomId);
-    if (!rList) {
-      rList = [];
-      schedulesByRoom.set(a.roomId, rList);
-    }
-    rList.push(a);
+  // Precompute CourseTimingInfo for each assignment
+  interface AssignmentWithTiming {
+    assignment: ScheduleAssignment;
+    course: Course;
+    startTimeslot: Timeslot;
+    timing: CourseTimingInfo;
+    offering?: CourseOffering;
+    lecturerIds: string[];
+    scheduleGroupKey: string | null;
   }
+
+  const validAssignments: AssignmentWithTiming[] = [];
+  const assignmentsByDay = new Map<string, AssignmentWithTiming[]>();
+  const schedulesByLecturer = new Map<string, AssignmentWithTiming[]>();
 
   const conflicts: ConflictItem[] = [];
   let totalCost = 0;
   let hardCount = 0;
   let softCount = 0;
-
-  // Helper to get Schedule Group or Package key for an offering / course
-  const getOfferingScheduleGroupKey = (a: ScheduleAssignment): string | null => {
-    const off = a.courseOfferingId ? offeringMap.get(a.courseOfferingId) : undefined;
-    if (off) {
-      if (off.targetScheduleGroup) return off.targetScheduleGroup;
-      if (off.semester) {
-        const sem = off.semester;
-        const kbk = off.kbkId ? `-${off.kbkId}` : '';
-        const sec = off.section || off.sectionName || 'A';
-        // Semester 1-4 separated by section if specified, else same group
-        return `pkg-sem-${sem}${kbk}-sec-${sec}`;
-      }
-    }
-    const c = courseMap.get(a.courseId);
-    if (c && c.semester) {
-      const kbk = c.kbkIds && c.kbkIds.length > 0 ? `-${c.kbkIds[0]}` : '';
-      return `pkg-sem-${c.semester}${kbk}`;
-    }
-    return null;
-  };
 
   const packageWeight = weights.packageConflictWeight ?? weights.curriculumConflictWeight ?? 100;
   const hardWeight = weights.hardConflictWeight ?? 100;
@@ -131,174 +92,168 @@ export function detectConflicts(
   const preferenceWeight = weights.preferenceWeight ?? 15;
   const densityWeight = weights.densityWeight ?? 10;
 
-  // =========================================================================
-  // 1. TIMESLOT COLLISION CHECKS (O(k^2) per slot)
-  // =========================================================================
-  schedulesByTimeslot.forEach((slotAssignments, timeslotId) => {
-    const t1 = timeslotMap.get(timeslotId);
-    if (!t1 || slotAssignments.length <= 1) return;
-
-    for (let i = 0; i < slotAssignments.length; i++) {
-      const a1 = slotAssignments[i];
-      const c1 = courseMap.get(a1.courseId);
-      const r1 = roomMap.get(a1.roomId);
-      const off1 = a1.courseOfferingId ? offeringMap.get(a1.courseOfferingId) : undefined;
-      const groupKey1 = getOfferingScheduleGroupKey(a1);
-
-      if (!c1) continue;
-
-      for (let j = i + 1; j < slotAssignments.length; j++) {
-        const a2 = slotAssignments[j];
-        const c2 = courseMap.get(a2.courseId);
-        const r2 = roomMap.get(a2.roomId);
-        const off2 = a2.courseOfferingId ? offeringMap.get(a2.courseOfferingId) : undefined;
-        const groupKey2 = getOfferingScheduleGroupKey(a2);
-
-        if (!c2) continue;
-
-        // C1: Lecturer Overlap (Dosen mengajar 2 mata kuliah/kelas sekaligus pada slot yang sama)
-        const lecs1 = (a1.lecturerIds && a1.lecturerIds.length > 0)
-          ? a1.lecturerIds
-          : (a1.lecturerId ? [a1.lecturerId] : []);
-        const lecs2 = (a2.lecturerIds && a2.lecturerIds.length > 0)
-          ? a2.lecturerIds
-          : (a2.lecturerId ? [a2.lecturerId] : []);
-
-        for (const lid of lecs1) {
-          if (lecs2.includes(lid)) {
-            const overlapLec = lecturerMap.get(lid);
-            hardCount++;
-            totalCost += hardWeight;
-            conflicts.push({
-              id: `c1-${a1.id}-${a2.id}-${lid}`,
-              category: 'LECTURER_OVERLAP',
-              categoryName: 'C1 — Bentrokan Dosen Pengampu',
-              isHardConstraint: true,
-              severity: 'high',
-              penalty: hardWeight,
-              title: `Dosen Bentrok: ${overlapLec?.name || 'Dosen'}`,
-              description: `Dosen dijadwalkan mengajar 2 kelas bersamaan (${c1.name} [${off1?.section || 'A'}] & ${c2.name} [${off2?.section || 'A'}]) pada ${t1.day}, pukul ${t1.label}.`,
-              assignment1Id: a1.id,
-              assignment2Id: a2.id,
-              course1Name: c1.name,
-              course2Name: c2.name,
-              involvedEntities: {
-                lecturerName: overlapLec?.name,
-                timeslotLabel: `${t1.day} ${t1.label}`,
-                day: t1.day,
-              },
-            });
-          }
-        }
-
-        // C2: Room Overlap (Ruangan dipakai 2 mata kuliah sekaligus di slot sama)
-        if (a1.roomId === a2.roomId) {
-          hardCount++;
-          totalCost += hardWeight;
-          conflicts.push({
-            id: `c2-${a1.id}-${a2.id}`,
-            category: 'ROOM_OVERLAP',
-            categoryName: 'C2 — Bentrokan Penggunaan Ruangan',
-            isHardConstraint: true,
-            severity: 'high',
-            penalty: hardWeight,
-            title: `Ruangan Bentrok: ${r1?.code || 'Ruangan'}`,
-            description: `Ruangan ${r1?.name || r1?.code} digunakan sekaligus oleh ${c1.name} dan ${c2.name} pada ${t1.day}, pukul ${t1.label}.`,
-            assignment1Id: a1.id,
-            assignment2Id: a2.id,
-            course1Name: c1.name,
-            course2Name: c2.name,
-            involvedEntities: {
-              roomCode: r1?.code,
-              timeslotLabel: `${t1.day} ${t1.label}`,
-              day: t1.day,
-            },
-          });
-        }
-
-        // C3: Schedule Group / Package Overlap (Mata kuliah dalam paket semester yang sama bentrok pada waktu yang sama)
-        if (groupKey1 && groupKey2 && groupKey1 === groupKey2 && a1.courseId !== a2.courseId) {
-          hardCount++;
-          totalCost += packageWeight;
-          conflicts.push({
-            id: `c3-pkg-${a1.id}-${a2.id}`,
-            category: 'PACKAGE_OVERLAP',
-            categoryName: 'C3 — Bentrokan Paket Semester / Schedule Group',
-            isHardConstraint: true,
-            severity: 'high',
-            penalty: packageWeight,
-            title: `Bentrokan Paket Semester: ${c1.name} & ${c2.name}`,
-            description: `Mata kuliah pada kelompok paket semester yang sama (${groupKey1}) dijadwalkan pada waktu yang bersamaan (${t1.day}, ${t1.label}).`,
-            assignment1Id: a1.id,
-            assignment2Id: a2.id,
-            course1Name: c1.name,
-            course2Name: c2.name,
-            involvedEntities: {
-              packageName: groupKey1,
-              timeslotLabel: `${t1.day} ${t1.label}`,
-              day: t1.day,
-            },
-          });
-        }
+  // Helper to get Schedule Group or Package key for an offering / course
+  const getOfferingScheduleGroupKey = (a: ScheduleAssignment, off?: CourseOffering, c?: Course): string | null => {
+    if (off) {
+      if (off.targetScheduleGroup) return off.targetScheduleGroup;
+      if (off.semester) {
+        const sem = off.semester;
+        const kbk = off.kbkId ? `-${off.kbkId}` : '';
+        const sec = off.section || off.sectionName || 'A';
+        return `pkg-sem-${sem}${kbk}-sec-${sec}`;
       }
     }
-  });
+    if (c && c.semester) {
+      const kbk = c.kbkIds && c.kbkIds.length > 0 ? `-${c.kbkIds[0]}` : '';
+      return `pkg-sem-${c.semester}${kbk}`;
+    }
+    return null;
+  };
 
-  // =========================================================================
-  // 2. ASSIGNMENT-LEVEL CONSTRAINTS (Kapasitas, Ketersediaan Dosen, Tipe Ruang)
-  // =========================================================================
   for (let i = 0; i < assignments.length; i++) {
     const a = assignments[i];
-    const course = courseMap.get(a.courseId);
-    const room = roomMap.get(a.roomId);
-    const timeslot = timeslotMap.get(a.timeslotId);
+    const cObj = courseMap.get(a.courseId);
+    if (
+      cObj &&
+      (cObj.isSchedulable === false ||
+        (cObj as any).is_schedulable === false ||
+        (cObj as any).dijadwalkanJurusan === false ||
+        (cObj.name || '').trim().toUpperCase() === 'KKN')
+    ) {
+      continue;
+    }
+
+    const startTimeslot = timeslotMap.get(a.timeslotId);
+    if (!startTimeslot || !cObj) continue;
+
     const off = a.courseOfferingId ? offeringMap.get(a.courseOfferingId) : undefined;
+    const rawSks = a.sks || off?.sks || off?.credits || cObj.sks || cObj.credits || 2;
+    const sks = Math.max(1, Math.round(rawSks));
+    const timing = calculateCourseTiming(startTimeslot, sks, timeslots);
 
-    if (!course || !room || !timeslot) continue;
+    const assignedLecIds =
+      a.lecturerIds && a.lecturerIds.length > 0
+        ? a.lecturerIds
+        : a.lecturerId
+        ? [a.lecturerId]
+        : [];
 
-    // Projected / Expected Enrollment
-    const expectedStudents = off?.expectedEnrollment ?? off?.capacity ?? off?.studentCount ?? course.studentCount ?? 35;
+    const groupKey = getOfferingScheduleGroupKey(a, off, cObj);
 
-    // C4: Room Capacity vs Expected Enrollment (Hard/High Penalty)
-    if (room.capacity < expectedStudents) {
-      const shortage = expectedStudents - room.capacity;
+    const item: AssignmentWithTiming = {
+      assignment: a,
+      course: cObj,
+      startTimeslot,
+      timing,
+      offering: off,
+      lecturerIds: assignedLecIds,
+      scheduleGroupKey: groupKey,
+    };
+
+    validAssignments.push(item);
+
+    // Group by day
+    const day = startTimeslot.day;
+    let dayList = assignmentsByDay.get(day);
+    if (!dayList) {
+      dayList = [];
+      assignmentsByDay.set(day, dayList);
+    }
+    dayList.push(item);
+
+    // Group by lecturer
+    for (const lid of assignedLecIds) {
+      let lecList = schedulesByLecturer.get(lid);
+      if (!lecList) {
+        lecList = [];
+        schedulesByLecturer.set(lid, lecList);
+      }
+      lecList.push(item);
+    }
+
+    // =========================================================================
+    // CONSTRAINT C0: VALIDASI BATAS HARI (Day Boundary Exceeded)
+    // =========================================================================
+    if (!timing.isValidWithinDay) {
       hardCount++;
-      totalCost += capacityWeight;
+      totalCost += hardWeight * 2;
       conflicts.push({
-        id: `c4-cap-${a.id}`,
-        category: 'ROOM_CAPACITY',
-        categoryName: 'C4 — Kapasitas Ruangan Tidak Cukup',
+        id: `c0-boundary-${a.id}`,
+        category: 'DAY_BOUNDARY_EXCEEDED',
+        categoryName: 'C0 — Batas Sesi Hari Terlampaui',
         isHardConstraint: true,
         severity: 'high',
-        penalty: capacityWeight,
-        title: `Kapasitas Ruang Kurang: ${room.code} (${room.capacity} kursi)`,
-        description: `Mata kuliah ${course.name} memiliki proyeksi ${expectedStudents} peserta, namun ruangan ${room.name} (${room.code}) hanya berkapasitas ${room.capacity} kursi (kurang ${shortage} kursi). Rekomendasi: Gunakan ruang lebih besar atau pecah menjadi Section B.`,
+        penalty: hardWeight * 2,
+        title: `Durasi SKS Melampaui Hari: ${cObj.name}`,
+        description: `Mata kuliah ${cObj.name} (${sks} SKS) dimulai pada ${startTimeslot.label} tetapi membutuhkan ${sks} sesi berurutan (sampai ${timing.endTime}) yang melebihi batas sesi perkuliahan aktif hari ${startTimeslot.day}.`,
         assignment1Id: a.id,
-        course1Name: course.name,
+        course1Name: cObj.name,
         involvedEntities: {
-          roomCode: room.code,
-          studentCount: expectedStudents,
-          timeslotLabel: `${timeslot.day} ${timeslot.label}`,
-          day: timeslot.day,
+          timeslotLabel: `${startTimeslot.day} ${timing.fullLabel}`,
+          day: startTimeslot.day,
         },
       });
     }
 
-    // C5: Lecturer Availability (Hard)
-    const assignedLecIds = (a.lecturerIds && a.lecturerIds.length > 0)
-      ? a.lecturerIds
-      : (a.lecturerId ? [a.lecturerId] : []);
+    // =========================================================================
+    // CONSTRAINT C4: ROOM CAPACITY vs EXPECTED ENROLLMENT
+    // =========================================================================
+    const room = roomMap.get(a.roomId);
+    if (room) {
+      const expectedStudents =
+        off?.expectedEnrollment ??
+        off?.capacity ??
+        off?.studentCount ??
+        cObj.studentCount ??
+        35;
 
+      if (room.capacity < expectedStudents) {
+        const shortage = expectedStudents - room.capacity;
+        hardCount++;
+        totalCost += capacityWeight;
+        conflicts.push({
+          id: `c4-cap-${a.id}`,
+          category: 'ROOM_CAPACITY',
+          categoryName: 'C4 — Kapasitas Ruangan Tidak Cukup',
+          isHardConstraint: true,
+          severity: 'high',
+          penalty: capacityWeight,
+          title: `Kapasitas Ruang Kurang: ${room.code} (${room.capacity} kursi)`,
+          description: `Mata kuliah ${cObj.name} memiliki proyeksi ${expectedStudents} peserta, namun ruangan ${room.name} (${room.code}) hanya berkapasitas ${room.capacity} kursi (kurang ${shortage} kursi).`,
+          assignment1Id: a.id,
+          course1Name: cObj.name,
+          involvedEntities: {
+            roomCode: room.code,
+            studentCount: expectedStudents,
+            timeslotLabel: `${startTimeslot.day} ${timing.fullLabel}`,
+            day: startTimeslot.day,
+          },
+        });
+      }
+    }
+
+    // =========================================================================
+    // CONSTRAINT C5: LECTURER AVAILABILITY ACROSS ENTIRE DURATION
+    // =========================================================================
     for (const lid of assignedLecIds) {
       const lecturer = lecturerMap.get(lid);
       if (!lecturer) continue;
 
-      const isDayAvailable = lecturer.availableDays.includes(timeslot.day);
-      const isSlotBlocked = lecturer.unavailableSlotIds?.includes(timeslot.id) || false;
+      const isDayAvailable = lecturer.availableDays.includes(startTimeslot.day);
+      const unavailableOccupied = timing.occupiedSlotIds.filter((slotId) =>
+        lecturer.unavailableSlotIds?.includes(slotId)
+      );
 
-      if (!isDayAvailable || isSlotBlocked) {
+      if (!isDayAvailable || unavailableOccupied.length > 0) {
         hardCount++;
         totalCost += availabilityWeight;
+        const conflictSessionLabel =
+          unavailableOccupied.length > 0
+            ? unavailableOccupied
+                .map((sId) => timeslotMap.get(sId)?.label || sId)
+                .join(', ')
+            : startTimeslot.day;
+
         conflicts.push({
           id: `c5-avail-${a.id}-${lid}`,
           category: 'LECTURER_UNAVAILABLE',
@@ -307,20 +262,20 @@ export function detectConflicts(
           severity: 'high',
           penalty: availabilityWeight,
           title: `Dosen Tidak Tersedia: ${lecturer.name}`,
-          description: `Dosen ${lecturer.name} tidak bersedia mengajar pada hari ${timeslot.day} (${timeslot.label}) untuk mata kuliah ${course.name}.`,
+          description: `Dosen ${lecturer.name} tidak bersedia mengajar pada ${startTimeslot.day} (${timing.sessionRangeLabel}, ${conflictSessionLabel}) untuk mata kuliah ${cObj.name}.`,
           assignment1Id: a.id,
-          course1Name: course.name,
+          course1Name: cObj.name,
           involvedEntities: {
             lecturerName: lecturer.name,
-            timeslotLabel: `${timeslot.day} ${timeslot.label}`,
-            day: timeslot.day,
+            timeslotLabel: `${startTimeslot.day} ${timing.fullLabel}`,
+            day: startTimeslot.day,
           },
         });
       }
 
-      // Soft: Lecturer Preferences (Day / Time preference)
+      // Soft: Lecturer Day Preferences
       if (lecturer.preferences) {
-        const dayPref = lecturer.preferences.dayPreferences?.[timeslot.day];
+        const dayPref = lecturer.preferences.dayPreferences?.[startTimeslot.day];
         if (dayPref === 'avoid') {
           softCount++;
           totalCost += preferenceWeight;
@@ -332,69 +287,234 @@ export function detectConflicts(
             severity: 'low',
             penalty: preferenceWeight,
             title: `Preferensi Hari Dosen: ${lecturer.name}`,
-            description: `Dosen ${lecturer.name} memilih untuk menghindari hari ${timeslot.day}.`,
+            description: `Dosen ${lecturer.name} memilih untuk menghindari hari ${startTimeslot.day}.`,
             assignment1Id: a.id,
-            course1Name: course.name,
+            course1Name: cObj.name,
             involvedEntities: {
               lecturerName: lecturer.name,
-              day: timeslot.day,
+              day: startTimeslot.day,
             },
           });
         }
       }
     }
 
-    // C6: Room Type & Equipment Compatibility (Hard)
-    const requiredType = off?.requiredRoomType || (course.type === 'Praktikum' ? 'Laboratorium' : 'Kelas');
-    if (requiredType === 'Laboratorium' && room.type !== 'Laboratorium') {
-      hardCount++;
-      totalCost += roomTypeWeight;
-      conflicts.push({
-        id: `c6-type-${a.id}`,
-        category: 'ROOM_TYPE_MISMATCH',
-        categoryName: 'C6 — Ketidaksesuaian Tipe Ruangan',
-        isHardConstraint: true,
-        severity: 'medium',
-        penalty: roomTypeWeight,
-        title: `Tipe Ruang Tidak Sesuai: ${course.name}`,
-        description: `Mata kuliah memerlukan ruang bertipe Laboratorium, namun dijadwalkan di ${room.name} (${room.type}).`,
-        assignment1Id: a.id,
-        course1Name: course.name,
-        involvedEntities: {
-          roomCode: room.code,
-          day: timeslot.day,
-        },
-      });
+    // =========================================================================
+    // CONSTRAINT C6: ROOM TYPE COMPATIBILITY
+    // =========================================================================
+    if (room) {
+      const requiredType =
+        off?.requiredRoomType || (cObj.type === 'Praktikum' ? 'Laboratorium' : 'Kelas');
+      if (requiredType === 'Laboratorium' && room.type !== 'Laboratorium') {
+        hardCount++;
+        totalCost += roomTypeWeight;
+        conflicts.push({
+          id: `c6-type-${a.id}`,
+          category: 'ROOM_TYPE_MISMATCH',
+          categoryName: 'C6 — Ketidaksesuaian Tipe Ruangan',
+          isHardConstraint: true,
+          severity: 'medium',
+          penalty: roomTypeWeight,
+          title: `Tipe Ruang Tidak Sesuai: ${cObj.name}`,
+          description: `Mata kuliah memerlukan ruang bertipe Laboratorium, namun dialokasikan di ${room.name} (${room.type}).`,
+          assignment1Id: a.id,
+          course1Name: cObj.name,
+          involvedEntities: {
+            roomCode: room.code,
+            day: startTimeslot.day,
+          },
+        });
+      }
     }
 
-    // Soft: Undesirable Late Slot (slot 5, jam sore/malam)
-    if (timeslot.slotIndex >= 5) {
+    // Soft: Undesirable Late Slot (berakhir setelah 17:00)
+    if (timing.endTime > '17:00') {
       softCount++;
       totalCost += preferenceWeight * 0.5;
     }
   }
 
   // =========================================================================
-  // 3. SOFT CONSTRAINTS: LECTURER WORKLOAD DENSITY & ROOM HOPPING
+  // MULTI-SESSION INTERVAL OVERLAP CHECKS PER DAY (Dosen, Ruangan, Paket, Kelas)
+  // Evaluates every pair on the same day for session overlap
   // =========================================================================
-  schedulesByLecturer.forEach((lecAssignments, lecturerId) => {
+  assignmentsByDay.forEach((dayItems, day) => {
+    if (dayItems.length <= 1) return;
+
+    for (let i = 0; i < dayItems.length; i++) {
+      const item1 = dayItems[i];
+      const a1 = item1.assignment;
+      const c1 = item1.course;
+      const t1 = item1.startTimeslot;
+      const timing1 = item1.timing;
+      const slots1 = timing1.occupiedSlotIds;
+
+      for (let j = i + 1; j < dayItems.length; j++) {
+        const item2 = dayItems[j];
+        const a2 = item2.assignment;
+        const c2 = item2.course;
+        const t2 = item2.startTimeslot;
+        const timing2 = item2.timing;
+        const slots2 = timing2.occupiedSlotIds;
+
+        // Check if the two multi-session intervals overlap
+        const overlappingSlotIds = slots1.filter((id) => slots2.includes(id));
+        const hasSessionOverlap =
+          overlappingSlotIds.length > 0 ||
+          doTimeIntervalsOverlap(
+            timing1.startTime,
+            timing1.endTime,
+            timing2.startTime,
+            timing2.endTime
+          );
+
+        if (!hasSessionOverlap) continue;
+
+        // Format overlapping sessions for clear message
+        const overlapSlots = overlappingSlotIds
+          .map((id) => timeslotMap.get(id))
+          .filter((t): t is Timeslot => Boolean(t));
+        const overlapPeriodDesc =
+          overlapSlots.length > 0
+            ? overlapSlots.map((ts) => ts.sessionLabel || ts.label).join(', ')
+            : `${Math.max(
+                timing1.startSessionNumber,
+                timing2.startSessionNumber
+              )}–${Math.min(timing1.endSessionNumber, timing2.endSessionNumber)}`;
+
+        // C1: Lecturer Overlap (Dosen mengajar 2 kelas/mata kuliah yang overlap sesinya)
+        const commonLecturers = item1.lecturerIds.filter((lid) =>
+          item2.lecturerIds.includes(lid)
+        );
+
+        for (const lid of commonLecturers) {
+          const overlapLec = lecturerMap.get(lid);
+          hardCount++;
+          totalCost += hardWeight;
+          conflicts.push({
+            id: `c1-${a1.id}-${a2.id}-${lid}`,
+            category: 'LECTURER_OVERLAP',
+            categoryName: 'C1 — Bentrokan Dosen Pengampu',
+            isHardConstraint: true,
+            severity: 'high',
+            penalty: hardWeight,
+            title: `Dosen Bentrok: ${overlapLec?.name || 'Dosen'}`,
+            description: `Dosen ${overlapLec?.name} dijadwalkan mengajar 2 kelas bersamaan yang saling bertabrakan: ${c1.name} [${timing1.sessionRangeLabel}, ${timing1.timeRangeLabel}] & ${c2.name} [${timing2.sessionRangeLabel}, ${timing2.timeRangeLabel}] pada ${day} (overlap di ${overlapPeriodDesc}).`,
+            assignment1Id: a1.id,
+            assignment2Id: a2.id,
+            course1Name: c1.name,
+            course2Name: c2.name,
+            involvedEntities: {
+              lecturerName: overlapLec?.name,
+              timeslotLabel: `${day} (${timing1.timeRangeLabel} vs ${timing2.timeRangeLabel})`,
+              day: day as any,
+            },
+          });
+        }
+
+        // C2: Room Overlap (Ruangan yang sama dipakai bersamaan)
+        if (a1.roomId === a2.roomId) {
+          const rObj = roomMap.get(a1.roomId);
+          hardCount++;
+          totalCost += hardWeight;
+          conflicts.push({
+            id: `c2-${a1.id}-${a2.id}`,
+            category: 'ROOM_OVERLAP',
+            categoryName: 'C2 — Bentrokan Penggunaan Ruangan',
+            isHardConstraint: true,
+            severity: 'high',
+            penalty: hardWeight,
+            title: `Ruangan Bentrok: ${rObj?.code || 'Ruangan'}`,
+            description: `Ruangan ${rObj?.name || rObj?.code} digunakan bersamaan oleh ${c1.name} [${timing1.sessionRangeLabel}] dan ${c2.name} [${timing2.sessionRangeLabel}] pada ${day} (overlap di ${overlapPeriodDesc}).`,
+            assignment1Id: a1.id,
+            assignment2Id: a2.id,
+            course1Name: c1.name,
+            course2Name: c2.name,
+            involvedEntities: {
+              roomCode: rObj?.code,
+              timeslotLabel: `${day} (${timing1.timeRangeLabel} vs ${timing2.timeRangeLabel})`,
+              day: day as any,
+            },
+          });
+        }
+
+        // C3: Schedule Group / Package Overlap (Mata kuliah dalam paket semester sama bertabrakan)
+        if (
+          item1.scheduleGroupKey &&
+          item2.scheduleGroupKey &&
+          item1.scheduleGroupKey === item2.scheduleGroupKey &&
+          a1.courseId !== a2.courseId
+        ) {
+          hardCount++;
+          totalCost += packageWeight;
+          conflicts.push({
+            id: `c3-pkg-${a1.id}-${a2.id}`,
+            category: 'PACKAGE_OVERLAP',
+            categoryName: 'C3 — Bentrokan Paket Semester / Schedule Group',
+            isHardConstraint: true,
+            severity: 'high',
+            penalty: packageWeight,
+            title: `Bentrokan Paket Semester: ${c1.name} & ${c2.name}`,
+            description: `Mata kuliah pada paket semester yang sama (${item1.scheduleGroupKey}) memiliki jadwal yang saling bertabrakan: ${c1.name} [${timing1.sessionRangeLabel}] dan ${c2.name} [${timing2.sessionRangeLabel}] pada ${day} (overlap di ${overlapPeriodDesc}).`,
+            assignment1Id: a1.id,
+            assignment2Id: a2.id,
+            course1Name: c1.name,
+            course2Name: c2.name,
+            involvedEntities: {
+              packageName: item1.scheduleGroupKey,
+              timeslotLabel: `${day} (${timing1.timeRangeLabel} vs ${timing2.timeRangeLabel})`,
+              day: day as any,
+            },
+          });
+        }
+
+        // Class Overlap (Kelas yang sama dijadwalkan bersamaan)
+        if (a1.classId && a2.classId && a1.classId === a2.classId && a1.courseId !== a2.courseId) {
+          hardCount++;
+          totalCost += hardWeight;
+          conflicts.push({
+            id: `c-class-${a1.id}-${a2.id}`,
+            category: 'CLASS_OVERLAP',
+            categoryName: 'C — Bentrokan Kelas Mahasiswa',
+            isHardConstraint: true,
+            severity: 'high',
+            penalty: hardWeight,
+            title: `Bentrokan Kelas: ${c1.name} & ${c2.name}`,
+            description: `Rombongan kelas mahasiswa yang sama memiliki 2 perkuliahan yang bertabrakan pada hari ${day} (overlap di ${overlapPeriodDesc}).`,
+            assignment1Id: a1.id,
+            assignment2Id: a2.id,
+            course1Name: c1.name,
+            course2Name: c2.name,
+            involvedEntities: {
+              timeslotLabel: `${day} (${timing1.timeRangeLabel} vs ${timing2.timeRangeLabel})`,
+              day: day as any,
+            },
+          });
+        }
+      }
+    }
+  });
+
+  // =========================================================================
+  // SOFT CONSTRAINTS: LECTURER WORKLOAD DENSITY & ROOM HOPPING
+  // =========================================================================
+  schedulesByLecturer.forEach((lecItems, lecturerId) => {
     const lecturer = lecturerMap.get(lecturerId);
     if (!lecturer) return;
 
     // Group by day
-    const dayAssignments = new Map<string, ScheduleAssignment[]>();
-    for (const a of lecAssignments) {
-      const ts = timeslotMap.get(a.timeslotId);
-      if (!ts) continue;
-      let list = dayAssignments.get(ts.day);
+    const dayAssignments = new Map<string, AssignmentWithTiming[]>();
+    for (const it of lecItems) {
+      const day = it.startTimeslot.day;
+      let list = dayAssignments.get(day);
       if (!list) {
         list = [];
-        dayAssignments.set(ts.day, list);
+        dayAssignments.set(day, list);
       }
-      list.push(a);
+      list.push(it);
     }
 
-    // Check overload per day (> 3 assignments in 1 day)
+    // Check overload per day (> 3 courses in 1 day)
     dayAssignments.forEach((dayList, day) => {
       if (dayList.length > 3) {
         softCount++;
@@ -408,8 +528,8 @@ export function detectConflicts(
           severity: 'low',
           penalty,
           title: `Beban Dosen Padat: ${lecturer.name} (${dayList.length} kelas)`,
-          description: `Dosen ${lecturer.name} mengajar ${dayList.length} sesi perkuliahan pada hari ${day}.`,
-          assignment1Id: dayList[0].id,
+          description: `Dosen ${lecturer.name} mengajar ${dayList.length} mata kuliah perkuliahan pada hari ${day}.`,
+          assignment1Id: dayList[0].assignment.id,
           involvedEntities: {
             lecturerName: lecturer.name,
             day: day as any,
@@ -418,7 +538,7 @@ export function detectConflicts(
       }
 
       // Check room hopping (different rooms on consecutive slots)
-      const usedRooms = new Set(dayList.map(a => a.roomId));
+      const usedRooms = new Set(dayList.map((it) => it.assignment.roomId));
       if (usedRooms.size > 2 && dayList.length >= 3) {
         softCount++;
         totalCost += preferenceWeight * 0.5;

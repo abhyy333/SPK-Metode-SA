@@ -92,7 +92,7 @@ export const LecturerAvailabilityPage: React.FC<LecturerAvailabilityPageProps> =
 
   const setMorningOnly = () => {
     setAvailableDays([...ALL_DAYS]);
-    const afternoonSlots = timeslots.filter(t => t.slotIndex > 2).map(t => t.id);
+    const afternoonSlots = timeslots.filter(t => t.startTime >= '12:00').map(t => t.id);
     setUnavailableSlotIds(afternoonSlots);
     setTimePreference('Pagi');
     showToast('info', 'Preset Diterapkan', 'Slot siang & sore ditandai tidak tersedia.');
@@ -100,7 +100,7 @@ export const LecturerAvailabilityPage: React.FC<LecturerAvailabilityPageProps> =
 
   const setAfternoonOnly = () => {
     setAvailableDays([...ALL_DAYS]);
-    const morningSlots = timeslots.filter(t => t.slotIndex <= 2).map(t => t.id);
+    const morningSlots = timeslots.filter(t => t.startTime < '12:00').map(t => t.id);
     setUnavailableSlotIds(morningSlots);
     setTimePreference('Siang');
     showToast('info', 'Preset Diterapkan', 'Slot pagi ditandai tidak tersedia.');
@@ -369,7 +369,7 @@ export const LecturerAvailabilityPage: React.FC<LecturerAvailabilityPageProps> =
             <span>Preferensi Jam Kuliah (Soft Constraint S3)</span>
           </h3>
           <p className="text-[11px] text-slate-500">
-            Pilihan waktu umum (Pagi: 07:30-10:00, Siang: 10:30-15:00, Sore: 15:30-18:00).
+            Pilihan waktu umum (Pagi: 07:50-12:00, Siang: 12:00-15:20, Sore: 15:20-17:50).
           </p>
 
           <div className="space-y-2 pt-1">

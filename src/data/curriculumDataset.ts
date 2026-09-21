@@ -929,6 +929,8 @@ export const MASTER_COURSES: Course[] = (() => {
     }
     seenIds.add(id);
 
+    const isKKN = cleanName.trim().toUpperCase() === 'KKN' || doc.code === 'MPK1077101' || doc.code === 'FBS4142';
+
     list.push({
       id,
       code: doc.code,
@@ -939,14 +941,21 @@ export const MASTER_COURSES: Course[] = (() => {
       recommendedSemester: doc.sem,
       category: metadata.category,
       type: metadata.category,
-      subCategory: metadata.subCategory,
+      subCategory: isKKN ? 'Wajib Universitas (Dikelola LPPM)' : metadata.subCategory,
       curriculumYear: year,
-      kbkIds: metadata.kbkIds.length > 0 ? metadata.kbkIds : undefined,
-      packageType: metadata.packageType,
+      kbkIds: isKKN ? [] : (metadata.kbkIds.length > 0 ? metadata.kbkIds : undefined),
+      packageType: isKKN ? 'common' : metadata.packageType,
       isPackageCourse: isPackage,
+      isSchedulable: !isKKN,
+      is_schedulable: !isKKN,
+      isLppmManaged: isKKN,
+      dijadwalkanJurusan: !isKKN,
+      scopeKbk: isKKN ? 'all' : undefined,
       classificationStatus: metadata.classificationStatus,
       confidenceScore: metadata.confidenceScore,
-      classificationReason: metadata.classificationReason,
+      classificationReason: isKKN
+        ? 'Dikelola LPPM — Tidak Dijadwalkan Jurusan (Berlaku untuk Semua KBK)'
+        : metadata.classificationReason,
       durationMinutes: doc.sks * 50,
       priority: metadata.category === 'Wajib' ? 'Tinggi' : 'Normal',
       isActive: true,

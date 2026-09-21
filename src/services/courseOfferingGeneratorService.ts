@@ -109,6 +109,18 @@ export const KBK_PROJECTIONS: Record<string, number> = {
 
 export class CourseOfferingGeneratorService {
   /**
+   * Identifies whether a course is non-schedulable by Jurusan (e.g., KKN managed by LPPM)
+   */
+  public static isNonSchedulableCourse(course: Course | { name?: string; code?: string; type?: string; isSchedulable?: boolean; is_schedulable?: boolean; isLppmManaged?: boolean; dijadwalkanJurusan?: boolean }): boolean {
+    if (course.isSchedulable === false || (course as any).is_schedulable === false || (course as any).dijadwalkanJurusan === false || (course as any).isLppmManaged === true) {
+      return true;
+    }
+    const name = (course.name || '').trim().toUpperCase();
+    const code = (course.code || '').trim().toUpperCase();
+    return name === 'KKN' || code === 'MPK1077101' || code === 'FBS4142';
+  }
+
+  /**
    * Identifies whether a course is a practicum / laboratory subject
    */
   public static isPracticumCourse(course: Course | { name?: string; code?: string; type?: string }): boolean {
@@ -228,6 +240,22 @@ export class CourseOfferingGeneratorService {
           continue;
         }
         seenCourseIdsInPackage.add(coursePackageUniqueKey);
+
+        // Check if Non-Schedulable (KKN / LPPM managed) -> Exclude from lecture schedule
+        if (this.isNonSchedulableCourse(course)) {
+          if (!excludedPracticums.some((p) => p.courseId === course.id && p.semester === sem && p.curriculumYear === cYear)) {
+            excludedPracticums.push({
+              courseId: course.id,
+              courseCode: course.code,
+              courseName: course.name,
+              sks: course.sks,
+              semester: sem,
+              curriculumYear: cYear,
+              reason: 'Dikelola LPPM (Tidak Dijadwalkan Jurusan — Berlaku Semua KBK)',
+            });
+          }
+          continue;
+        }
 
         // Check if Practicum -> Exclude from lecture schedule
         if (this.isPracticumCourse(course)) {
@@ -475,6 +503,19 @@ export class CourseOfferingGeneratorService {
         const uniqueKey = `${cYear}-${course.id}-${sem}`;
         if (seenCourseIds.has(uniqueKey)) continue;
         seenCourseIds.add(uniqueKey);
+
+        if (this.isNonSchedulableCourse(course)) {
+          excludedPracticums.push({
+            courseId: course.id,
+            courseCode: course.code,
+            courseName: course.name,
+            sks: course.sks,
+            semester: sem,
+            curriculumYear: cYear,
+            reason: 'Dikelola LPPM (Tidak Dijadwalkan Jurusan — Berlaku Semua KBK)',
+          });
+          continue;
+        }
 
         if (this.isPracticumCourse(course)) {
           excludedPracticums.push({
@@ -741,6 +782,20 @@ export class CourseOfferingGeneratorService {
       const cYear = item.curriculumYear || course.curriculumYear || 2026;
       const sem = item.semester || course.semester || 1;
       const isPracticum = item.isPracticum ?? (course.type === 'Praktikum' || this.isPracticumCourse(course));
+
+      const isNonSchedulable = this.isNonSchedulableCourse(course);
+      if (isNonSchedulable) {
+        excludedPracticums.push({
+          courseId: course.id,
+          courseCode: course.code,
+          courseName: course.name,
+          sks: course.sks,
+          semester: sem,
+          curriculumYear: cYear,
+          reason: 'Dikelola LPPM (Tidak Dijadwalkan Jurusan — Berlaku Semua KBK)',
+        });
+        continue;
+      }
 
       // 1. Practicum Handling
       if (isPracticum) {

@@ -11,15 +11,21 @@ import {
   AlertTriangle,
   Calendar,
   Sparkles,
+  Info,
+  ShieldCheck,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
-import { Timeslot, DayOfWeek, ScheduleAssignment, RolePermissions } from '../types';
+import { Timeslot, DayOfWeek, ScheduleAssignment, RolePermissions, CurrentUser } from '../types';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { DeleteConfirmModal } from '../components/ui/DeleteConfirmModal';
 import { useToast } from '../components/ui/Toast';
 import {
   ALL_DAYS,
+  DEFAULT_STANDARD_PERIODS,
   calculateSessionDuration,
+  addMinutesToTime,
   getOverlappingSessions,
   getSessionShortLabel,
 } from '../utils/sessionUtils';
@@ -28,6 +34,7 @@ interface TimeslotsPageProps {
   timeslots: Timeslot[];
   schedule?: ScheduleAssignment[];
   permissions?: RolePermissions;
+  currentUser?: CurrentUser;
   onSaveTimeslot: (timeslot: Timeslot) => void;
   onDeleteTimeslot: (id: string) => void;
   onToggleTimeslot: (id: string) => void;
@@ -38,6 +45,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
   timeslots,
   schedule = [],
   permissions = { canCreate: true, canEdit: true, canDelete: true, canOptimize: true, canManageSchedule: true },
+  currentUser,
   onSaveTimeslot,
   onDeleteTimeslot,
   onToggleTimeslot,
@@ -45,7 +53,11 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
 }) => {
   const { showToast } = useToast();
 
+  // Role checks: Only Admin can add, edit, delete, or reset default sessions
+  const isAdmin = currentUser ? currentUser.role === 'admin' : Boolean(permissions?.canManageSchedule && permissions?.canCreate);
+
   const [selectedDayFilter, setSelectedDayFilter] = useState<string>('all');
+  const [showStandardReference, setShowStandardReference] = useState<boolean>(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTimeslot, setEditingTimeslot] = useState<Timeslot | null>(null);
 
@@ -62,8 +74,8 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
   }>({
     id: '',
     day: 'Senin',
-    startTime: '07:30',
-    endTime: '09:10',
+    startTime: '07:50',
+    endTime: '08:40',
     isActive: true,
   });
 
@@ -80,18 +92,29 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
 
   // Handlers
   const handleOpenAdd = (defaultDay: DayOfWeek = 'Senin') => {
+    if (!isAdmin) {
+      showToast('error', 'Akses Ditolak', 'Hanya administrator yang diizinkan menambahkan sesi waktu.');
+      return;
+    }
     setEditingTimeslot(null);
+    const daySlug = (defaultDay || 'senin').toLowerCase();
+    // Unique primary key independent of session number
+    const uniqueId = `ts-${daySlug}-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
     setFormData({
-      id: `ts-${(defaultDay || 'senin').toLowerCase()}-${Date.now()}`,
+      id: uniqueId,
       day: defaultDay,
-      startTime: '07:30',
-      endTime: '09:10',
+      startTime: '07:50',
+      endTime: '08:40',
       isActive: true,
     });
     setIsModalOpen(true);
   };
 
   const handleOpenEdit = (ts: Timeslot) => {
+    if (!isAdmin) {
+      showToast('error', 'Akses Ditolak', 'Hanya administrator yang diizinkan mengubah sesi waktu.');
+      return;
+    }
     setEditingTimeslot(ts);
     setFormData({
       id: ts.id,
@@ -104,18 +127,27 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
   };
 
   const handleDuplicate = (ts: Timeslot) => {
+    if (!isAdmin) {
+      showToast('error', 'Akses Ditolak', 'Hanya administrator yang diizinkan menduplikasi sesi waktu.');
+      return;
+    }
+    const daySlug = (ts.day || 'senin').toLowerCase();
     const duplicated: Timeslot = {
       ...ts,
-      id: `ts-${(ts.day || 'senin').toLowerCase()}-${Date.now()}`,
+      id: `ts-${daySlug}-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
       label: `${ts.startTime} - ${ts.endTime}`,
     };
 
     onSaveTimeslot(duplicated);
-    showToast('success', 'Sesi Waktu Diduplikasi', `Sesi ${ts.day} ${ts.label} berhasil digandakan.`);
+    showToast('success', 'Sesi Waktu Diduplikasi', `Sesi ${ts.day} (${ts.startTime} - ${ts.endTime}) berhasil digandakan.`);
   };
 
   const handleConfirmDelete = () => {
     if (!deleteTarget) return;
+    if (!isAdmin) {
+      showToast('error', 'Akses Ditolak', 'Hanya administrator yang diizinkan menghapus sesi waktu.');
+      return;
+    }
     onDeleteTimeslot(deleteTarget.id);
     showToast('info', 'Sesi Waktu Dihapus', `Sesi ${deleteTarget.day} (${deleteTarget.label}) telah dihapus.`);
     setDeleteTarget(null);
@@ -123,13 +155,41 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
 
   const handleConfirmDeactivate = () => {
     if (!deleteTarget) return;
+    if (!isAdmin) {
+      showToast('error', 'Akses Ditolak', 'Hanya administrator yang diizinkan menonaktifkan sesi waktu.');
+      return;
+    }
     onToggleTimeslot(deleteTarget.id);
     showToast('info', 'Sesi Waktu Dinonaktifkan', `Sesi ${deleteTarget.day} (${deleteTarget.label}) telah dinonaktifkan.`);
     setDeleteTarget(null);
   };
 
+  const handleStartTimeChange = (newStartTime: string) => {
+    // Automatically set end time to startTime + 50 minutes
+    const autoEndTime = addMinutesToTime(newStartTime, 50);
+    setFormData(prev => ({
+      ...prev,
+      startTime: newStartTime,
+      endTime: autoEndTime,
+    }));
+  };
+
+  const handleSetDuration = (durationMinutes: number) => {
+    if (!formData.startTime) return;
+    const newEndTime = addMinutesToTime(formData.startTime, durationMinutes);
+    setFormData(prev => ({
+      ...prev,
+      endTime: newEndTime,
+    }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!isAdmin) {
+      showToast('error', 'Akses Ditolak', 'Hanya administrator yang diizinkan menyimpan perubahan sesi.');
+      return;
+    }
 
     if (calculatedDuration <= 0) {
       showToast('error', 'Waktu Tidak Valid', 'Jam selesai harus lebih besar daripada jam mulai.');
@@ -137,14 +197,15 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
     }
 
     const label = `${formData.startTime} - ${formData.endTime}`;
+    // Structure strictly complies with specifications: id, startTime, endTime, durationMinutes, isActive
     const newTimeslot: Timeslot = {
       id: formData.id,
       day: formData.day,
       startTime: formData.startTime,
       endTime: formData.endTime,
-      slotIndex: 1, // Will be auto-indexed on save
       durationMinutes: calculatedDuration,
       isActive: formData.isActive,
+      slotIndex: 1, // Will be reindexed automatically based on startTime
       label,
     };
 
@@ -154,8 +215,20 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
     showToast(
       'success',
       editingTimeslot ? 'Sesi Waktu Diperbarui' : 'Sesi Waktu Ditambahkan',
-      `${formData.day} ${formData.startTime} - ${formData.endTime} (${calculatedDuration} Menit) siap digunakan.`
+      `${formData.day} ${formData.startTime} - ${formData.endTime} (${calculatedDuration} Menit) disimpan dan diurutkan otomatis.`
     );
+  };
+
+  const handleResetClick = () => {
+    if (!isAdmin) {
+      showToast('error', 'Akses Ditolak', 'Hanya administrator yang berwenang mereset sesi default.');
+      return;
+    }
+
+    if (window.confirm('Kembalikan semua sesi perkuliahan menjadi 12 sesi default standar (07:50 - 17:50, @50 menit per sesi) untuk setiap hari aktif?')) {
+      onResetDefaultTimeslots();
+      showToast('success', 'Sesi Default Diterapkan', '12 Sesi perkuliahan standar (07:50 - 17:50, @50 menit) telah berhasil diterapkan untuk seluruh hari aktif.');
+    }
   };
 
   // Group timeslots by Day
@@ -187,32 +260,48 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
             <Badge variant="indigo" size="sm">
               {totalActiveSlots} / {timeslots.length} Sesi Aktif
             </Badge>
+            {!isAdmin && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                <ShieldCheck className="w-3 h-3 text-slate-500" />
+                Mode Lihat (Read-Only)
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Kelola matriks sesi harian (tambah, edit jam mulai/selesai, dan urutan sesi dihitung otomatis per hari)
+            Jadwal sesi perkuliahan default: 12 sesi berurutan (07:50 - 17:50, durasi 50 menit). Urutan sesi dihitung otomatis berdasarkan waktu mulai.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {permissions.canManageSchedule && (
+          {/* Reference Info Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setShowStandardReference(!showStandardReference)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors"
+          >
+            <Info className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Standar 12 Sesi</span>
+            {showStandardReference ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+
+          {/* Reset ke Sesi Default Button: STRICTLY ADMIN ONLY */}
+          {isAdmin && (
             <button
               type="button"
-              onClick={() => {
-                if (window.confirm('Kembalikan matriks sesi waktu ke template standar Teknik Elektro UNRAM?')) {
-                  onResetDefaultTimeslots();
-                  showToast('info', 'Sesi Waktu Direset', 'Matriks sesi waktu telah dikembalikan ke template awal.');
-                }
-              }}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors"
+              id="btn-reset-default-sessions"
+              onClick={handleResetClick}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold shadow-2xs transition-colors"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset Template</span>
+              <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
+              <span>Reset ke Sesi Default</span>
             </button>
           )}
 
-          {permissions.canCreate && (
+          {/* Tambah Sesi Waktu Button: STRICTLY ADMIN ONLY */}
+          {isAdmin && (
             <button
               type="button"
+              id="btn-add-timeslot"
               onClick={() => handleOpenAdd('Senin')}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors"
             >
@@ -222,6 +311,48 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
           )}
         </div>
       </div>
+
+      {/* Non-Admin Notice Banner */}
+      {!isAdmin && (
+        <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700 flex items-start gap-3">
+          <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+          <div className="text-xs space-y-0.5">
+            <div className="font-bold text-slate-800">Mode Pratinjau Terbatas (Dosen / Mahasiswa)</div>
+            <p className="text-slate-500 leading-relaxed">
+              Anda hanya dapat melihat matriks sesi perkuliahan yang telah ditetapkan. Operasi penambahan, penyuntingan, penghapusan, atau reset sesi default hanya dapat dilakukan oleh Administrator Jurusan Teknik Elektro.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Expandable Standard Sesi Reference Table */}
+      {showStandardReference && (
+        <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100 space-y-3 transition-all animate-fadeIn">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-indigo-700" />
+              <h3 className="text-xs font-bold text-indigo-950 uppercase tracking-wider">
+                Konfigurasi Standar 12 Sesi Perkuliahan (07:50 - 17:50, @50 Menit)
+              </h3>
+            </div>
+            <span className="text-[11px] font-semibold text-indigo-700">Durasi: 50 Menit / Sesi</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            {DEFAULT_STANDARD_PERIODS.map((period, idx) => (
+              <div
+                key={idx}
+                className="bg-white p-2.5 rounded-xl border border-indigo-100 shadow-2xs text-center"
+              >
+                <div className="text-[10px] font-bold text-indigo-700 uppercase">Sesi {idx + 1}</div>
+                <div className="text-xs font-mono font-bold text-slate-900 mt-0.5">
+                  {period.startTime} - {period.endTime}
+                </div>
+                <div className="text-[9px] text-slate-400 mt-0.5">50 Menit</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filter Tabs */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
@@ -260,7 +391,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
         </div>
 
         <div className="text-xs text-slate-500 font-medium">
-          Klik tombol status untuk mengaktifkan/menonaktifkan sesi
+          {isAdmin ? 'Klik status untuk mengaktifkan/menonaktifkan sesi pada algoritma SA' : 'Sesi aktif digunakan oleh sistem Simulated Annealing'}
         </div>
       </div>
 
@@ -288,7 +419,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
                   <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
                     {activeCount} / {daySlots.length} Aktif
                   </span>
-                  {permissions.canCreate && (
+                  {isAdmin && (
                     <button
                       onClick={() => handleOpenAdd(day)}
                       className="p-1 rounded-lg hover:bg-white text-slate-500 hover:text-indigo-600 transition-colors"
@@ -306,7 +437,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
                   <div className="py-8 text-center text-slate-400 space-y-2">
                     <Clock className="w-6 h-6 mx-auto text-slate-300" />
                     <p className="text-xs font-medium">Belum ada sesi untuk {day}</p>
-                    {permissions.canCreate && (
+                    {isAdmin && (
                       <button
                         onClick={() => handleOpenAdd(day)}
                         className="text-[11px] font-bold text-indigo-600 hover:underline"
@@ -346,8 +477,8 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
                           </div>
                         </div>
 
-                        {/* Status Toggle Button */}
-                        {permissions.canManageSchedule && (
+                        {/* Status Toggle Button (Interactive for Admin, static for others) */}
+                        {isAdmin ? (
                           <button
                             onClick={() => {
                               onToggleTimeslot(ts.id);
@@ -370,12 +501,22 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
                               <XCircle className="w-4 h-4 text-slate-400" />
                             )}
                           </button>
+                        ) : (
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                              ts.isActive
+                                ? 'text-emerald-700 bg-emerald-50'
+                                : 'text-slate-400 bg-slate-100'
+                            }`}
+                          >
+                            {ts.isActive ? 'Aktif' : 'Nonaktif'}
+                          </span>
                         )}
                       </div>
 
-                      {/* Action buttons */}
-                      <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-end gap-1 text-slate-400">
-                        {permissions.canCreate && (
+                      {/* Action buttons: STRICTLY ADMIN ONLY */}
+                      {isAdmin && (
+                        <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-end gap-1 text-slate-400">
                           <button
                             onClick={() => handleDuplicate(ts)}
                             className="p-1 rounded-md hover:text-slate-700 hover:bg-slate-100 transition-colors"
@@ -383,8 +524,6 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
                           >
                             <Copy className="w-3.5 h-3.5" />
                           </button>
-                        )}
-                        {permissions.canEdit && (
                           <button
                             onClick={() => handleOpenEdit(ts)}
                             className="p-1 rounded-md hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
@@ -392,8 +531,6 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
-                        )}
-                        {permissions.canDelete && (
                           <button
                             onClick={() => setDeleteTarget(ts)}
                             className="p-1 rounded-md hover:text-rose-600 hover:bg-rose-50 transition-colors"
@@ -401,8 +538,8 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   ))
                 )}
@@ -463,7 +600,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
               <input
                 type="time"
                 value={formData.startTime}
-                onChange={e => setFormData({ ...formData, startTime: e.target.value })}
+                onChange={e => handleStartTimeChange(e.target.value)}
                 className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 required
               />
@@ -483,6 +620,32 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
             </div>
           </div>
 
+          {/* Duration Presets */}
+          <div className="flex items-center gap-1.5 pt-1">
+            <span className="text-[11px] font-semibold text-slate-500">Preset Durasi:</span>
+            <button
+              type="button"
+              onClick={() => handleSetDuration(50)}
+              className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-colors"
+            >
+              50 Menit (1 Sesi)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetDuration(100)}
+              className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition-colors"
+            >
+              100 Menit (2 Sesi)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetDuration(150)}
+              className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition-colors"
+            >
+              150 Menit (3 Sesi)
+            </button>
+          </div>
+
           <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100 items-center">
             <div>
               <span className="text-[11px] font-semibold text-slate-500">Durasi Terhitung:</span>
@@ -498,7 +661,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
             <div className="flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50/80 px-2.5 py-2 rounded-lg border border-indigo-100">
               <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
               <span className="text-[11px] font-medium leading-tight">
-                Nomor Sesi diurutkan otomatis dari jam mulai
+                Nomor sesi berurutan otomatis berdasarkan waktu mulai ({formData.startTime || '07:50'}).
               </span>
             </div>
           </div>
@@ -515,7 +678,7 @@ export const TimeslotsPage: React.FC<TimeslotsPageProps> = ({
                 <span className="font-bold">
                   {overlappingSessions.map(s => `${s.day} ${getSessionShortLabel(s)} (${s.startTime} - ${s.endTime})`).join(', ')}
                 </span>
-                . Anda tetap dapat menyimpan jika ini disengaja untuk skenario khusus.
+                . Sesi akan tetap diurutkan otomatis berdasarkan jam mulai.
               </p>
             </div>
           )}
