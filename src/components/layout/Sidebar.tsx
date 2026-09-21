@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   LayoutDashboard,
   BookOpen,
@@ -77,6 +78,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // State for Reset Confirmation Modal
   const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
+
+  // Lock body scroll safely when mobile drawer is open
+  useEffect(() => {
+    if (!isOpenMobile) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpenMobile]);
 
   const handleConfirmReset = () => {
     setIsResetModalOpen(false);
@@ -330,17 +341,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {renderSidebarContent(false)}
       </aside>
 
-      {/* Mobile Drawer (Responsive Overlay) */}
-      {isOpenMobile && (
-        <div className="fixed inset-0 z-50 md:hidden flex">
+      {/* Mobile Drawer (Responsive Overlay Portal) */}
+      {isOpenMobile && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 md:hidden flex no-print">
           <div
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"
             onClick={onCloseMobile}
+            aria-hidden="true"
           />
-          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white shadow-2xl z-10 animate-in slide-in-from-left duration-200">
+          <div className="relative flex-1 flex flex-col max-w-xs w-full h-[100dvh] bg-white shadow-2xl z-10 animate-in slide-in-from-left duration-200 overscroll-contain">
             {renderSidebarContent(true)}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Confirmation Modal for Reset Data Simulasi */}

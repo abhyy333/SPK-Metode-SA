@@ -720,8 +720,8 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen w-screen bg-slate-50 flex text-slate-900 font-sans antialiased overflow-hidden">
-      {/* Persistent Academic Sidebar (Fixed / Sticky) */}
+    <div className="min-h-[100dvh] w-full bg-slate-50 flex flex-col md:flex-row text-slate-900 font-sans antialiased">
+      {/* Persistent Academic Sidebar (Fixed / Sticky on Desktop, Drawer on Mobile) */}
       <Sidebar
         activeView={activeView}
         onSelectView={setActiveView}
@@ -735,8 +735,8 @@ export default function App() {
         scheduleStatus={scheduleStatus}
       />
 
-      {/* Main Content Area (Single scroll container) */}
-      <div className="flex-1 h-screen flex flex-col min-w-0 overflow-hidden">
+      {/* Main Layout Area (Single Natural Scroll) */}
+      <div className="flex-1 min-h-[100dvh] flex flex-col min-w-0">
         <Header
           activeViewTitle={viewTitles[activeView] || 'ELEKTRO-SCHEDULER'}
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
@@ -755,7 +755,7 @@ export default function App() {
           onPublishSchedule={handlePublishSchedule}
         />
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto min-w-0">
+        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto min-w-0 overscroll-contain">
           <ErrorBoundary key={activeView} onReset={() => window.location.reload()}>
             <Suspense fallback={<PageSkeleton />}>
               {/* UNIFIED SCHEDULING WORKFLOW */}
