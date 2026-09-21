@@ -2089,3 +2089,5 @@ export const TimetablePage: React.FC<TimetablePageProps> = ({
     </div>
   );
 };
+
+export default TimetablePage;

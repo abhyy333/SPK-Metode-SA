@@ -311,7 +311,7 @@ export const SemesterPlanWizard: React.FC<SemesterPlanWizardProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${planningSummary.totalCourses > 0 ? 'pb-24 sm:pb-20' : 'pb-4'}`}>
       {/* 1. Header & Parameter Configuration */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
@@ -572,8 +572,8 @@ export const SemesterPlanWizard: React.FC<SemesterPlanWizardProps> = ({
                   </div>
                 </div>
 
-                {/* Course Items Table */}
-                <div className="divide-y divide-slate-100 overflow-x-auto">
+                {/* Course Items Table for Desktop */}
+                <div className="hidden md:block divide-y divide-slate-100 overflow-x-auto">
                   <table className="w-full text-left text-xs min-w-[700px]">
                     <thead>
                       <tr className="bg-slate-50/50 text-slate-500 font-bold border-b border-slate-100 uppercase tracking-wider text-[10px]">
@@ -727,11 +727,166 @@ export const SemesterPlanWizard: React.FC<SemesterPlanWizardProps> = ({
                     </tbody>
                   </table>
                 </div>
+
+                {/* Mobile Stacked Cards for Course Items (Screen < md) */}
+                <div className="md:hidden divide-y divide-slate-100">
+                  {items.map((item, idx) => {
+                    const courseId = item.courseId || item.courseCode || '';
+                    const course = courseMap.get(courseId);
+                    if (!course) return null;
+
+                    const isSelected = !!plannedCourses[course.id];
+                    const plan = plannedCourses[course.id];
+                    const isPracticum = course.type === 'Praktikum' || CourseOfferingGeneratorService.isPracticumCourse(course);
+                    const totalStudents = plan?.totalStudents ?? 0;
+                    const validation = validateStudentCount(totalStudents);
+
+                    return (
+                      <div
+                        key={`mob-${pkg.id}-${course.id}-${idx}`}
+                        className={`p-3.5 space-y-2.5 transition-colors ${
+                          isSelected ? 'bg-indigo-50/40' : 'bg-white'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="pt-0.5 shrink-0">
+                            <input
+                              id={`cb-plan-${pkg.id}-${course.id}`}
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleCourseInPlan(course, sem, pkg.kbkId)}
+                              className="w-5 h-5 text-indigo-600 rounded-md border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <label
+                              htmlFor={`cb-plan-${pkg.id}-${course.id}`}
+                              className="font-bold text-slate-900 text-xs leading-snug cursor-pointer block"
+                            >
+                              {course.name}
+                            </label>
+                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                              <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded font-semibold">
+                                {course.code}
+                              </span>
+                              <span className="text-[11px] font-bold text-slate-700">
+                                {course.sks} SKS
+                              </span>
+                              <span className="text-slate-300">•</span>
+                              {isPracticum ? (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                  Praktikum
+                                </span>
+                              ) : course.category === 'Pilihan' ? (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800">
+                                  Pilihan
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                                  Wajib
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {isSelected && (
+                          <div className="pl-8 pt-1.5 space-y-2 border-t border-indigo-100/60 mt-1">
+                            {isPracticum ? (
+                              <div className="text-[11px] text-amber-700 font-semibold">
+                                🧪 Praktikum Lab — Jadwal Khusus
+                              </div>
+                            ) : (
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <span className="text-xs text-slate-700 font-semibold">
+                                    Jumlah Mahasiswa:
+                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={500}
+                                      value={totalStudents}
+                                      onChange={(e) => updateStudentCount(course.id, Number(e.target.value))}
+                                      className="w-20 px-2 py-1 text-xs rounded-xl border border-slate-300 font-bold text-slate-900 bg-white"
+                                    />
+                                    <span className="text-xs text-slate-500 font-medium">mhs</span>
+                                  </div>
+                                </div>
+
+                                {totalStudents < MIN_STUDENTS_PER_CLASS && totalStudents > 0 && (
+                                  <div className="text-[10px] text-rose-600 flex items-center gap-1">
+                                    <input
+                                      type="checkbox"
+                                      checked={plan?.allowBelowMinimum || false}
+                                      onChange={() => toggleAllowBelowMinimum(course.id)}
+                                      className="rounded text-rose-600"
+                                      id={`allow-below-min-mob-${course.id}`}
+                                    />
+                                    <label htmlFor={`allow-below-min-mob-${course.id}`}>
+                                      Buka khusus (&lt;10 Mahasiswa)
+                                    </label>
+                                  </div>
+                                )}
+
+                                {validation.sections.length > 0 && (
+                                  <div className="p-2 rounded-xl bg-indigo-50/80 border border-indigo-100 text-[11px] text-indigo-950 space-y-0.5">
+                                    <div className="font-bold text-indigo-900">
+                                      Status: {validation.sections.length} Rombel Kelas
+                                    </div>
+                                    <div className="text-slate-600 font-medium">
+                                      {validation.sections.map((sec) => `${sec.section}: ${sec.studentCount} mhs`).join(', ')}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             );
           })
         )}
       </div>
+
+      {/* Sticky Bottom Action Bar (Only shown when courses are planned) */}
+      {planningSummary.totalCourses > 0 && (
+        <div className="p-3.5 sm:p-4 bg-slate-900 text-white rounded-2xl flex items-center justify-between gap-3 shadow-xl sticky bottom-4 z-20 animate-in fade-in slide-in-from-bottom-4 duration-200 border border-slate-800">
+          <div className="min-w-0 flex-1">
+            <div className="hidden sm:block">
+              <div className="font-bold text-xs text-white">
+                {planningSummary.totalCourses} Mata Kuliah Terpilih ({planningSummary.totalSections} Kelas Rombel)
+              </div>
+              <div className="text-[11px] text-slate-400 truncate">
+                {planningSummary.totalTheoryStudents} mahasiswa teori siap digenerate menjadi Course Offerings.
+              </div>
+            </div>
+            <div className="sm:hidden">
+              <div className="font-bold text-xs text-white truncate">
+                {planningSummary.totalCourses} MK • {planningSummary.totalTheoryStudents} Mahasiswa
+              </div>
+              <div className="text-[10px] text-slate-400 truncate">
+                {planningSummary.totalSections} Rombel Terbentuk
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setIsConfirmModalOpen(true)}
+            id="btn-apply-offerings-sticky"
+            className="shrink-0 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs flex items-center justify-center gap-1.5 sm:gap-2 shadow-xs transition-all active:scale-95"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="hidden xs:inline">Generate {planningSummary.totalSections} Rombel</span>
+            <span className="xs:hidden">Generate</span>
+          </button>
+        </div>
+      )}
 
       {/* 5. Modal: Add Custom Course from Master */}
       <Modal

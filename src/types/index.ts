@@ -519,21 +519,26 @@ export interface ScheduleSnapshot {
   name: string;
   academicYear: string;
   academicTerm: 'ganjil' | 'genap' | string;
-  curriculumConfig?: any;
+  curriculumConfig?: {
+    curriculumYear?: number;
+    activePackagesCount?: number;
+    [key: string]: any;
+  } | any;
   createdAt: string;
   createdBy: string;
   sourceVersionId?: string;
   notes?: string;
   scheduleData: ScheduleAssignment[];
-  courseOfferingData: CourseOffering[];
-  sessionData?: Timeslot[] | AcademicSession[];
+  courseOfferingData?: CourseOffering[];
+  sessionData?: Timeslot[] | AcademicSession[] | any[];
   roomAssignments?: Record<string, string>;
   lecturerAssignments?: Record<string, string[]>;
   metrics?: {
-    totalAssignments: number;
-    totalOfferings: number;
-    hardConflicts: number;
-    softConflicts: number;
+    totalAssignments?: number;
+    totalOfferings?: number;
+    totalSessions?: number;
+    hardConflicts?: number;
+    softConflicts?: number;
     cost?: number;
     fitness?: number;
   };
@@ -579,24 +584,29 @@ export type ScheduleChangeAction =
   | 'DUPLICATE_SNAPSHOT'
   | 'TEMPLATE_APPLIED'
   | 'UNDO_CHANGE'
+  | 'SYSTEM_RESET'
   | 'CLEAR_STUDENT_PREFERENCE';
 
 export interface ScheduleChangeLog {
   id: string;
   scheduleVersionId?: string;
   entityType: ScheduleChangeEntityType | string;
-  entityId: string;
+  entityId?: string;
   action: ScheduleChangeAction | string;
-  before: any;
-  after: any;
+  before?: any;
+  after?: any;
   description: string;
   changedBy: string;
   changedAt: string;
+  userRole?: string;
+  courseId?: string;
   courseCode?: string;
   courseName?: string;
+  offeringId?: string;
   semester?: number;
   isUndoable?: boolean;
   undoneAt?: string;
+  undoneBy?: string;
 }
 
 export interface OptimizationRun {
@@ -979,74 +989,5 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canAccessResearchMode: false,
   },
 };
-
-export interface ScheduleSnapshot {
-  id: string;
-  name: string;
-  academicYear: string;
-  academicTerm: string;
-  curriculumConfig?: {
-    curriculumYear?: number;
-    activePackagesCount?: number;
-  };
-  createdAt: string;
-  createdBy: string;
-  sourceVersionId?: string;
-  notes?: string;
-  isAutoBackup?: boolean;
-  scheduleData: ScheduleAssignment[];
-  courseOfferingData?: CourseOffering[];
-  sessionData?: any[];
-  roomAssignments?: Record<string, string>;
-  lecturerAssignments?: Record<string, string[]>;
-  metrics?: {
-    totalSessions?: number;
-    totalOfferings?: number;
-    hardConflicts?: number;
-    softConflicts?: number;
-  };
-}
-
-export type ScheduleChangeAction =
-  | 'MOVE_SESSION'
-  | 'CHANGE_ROOM'
-  | 'ASSIGN_LECTURER'
-  | 'CHANGE_LECTURER'
-  | 'SWAP_SCHEDULE'
-  | 'APPLY_SPK_RECOMMENDATION'
-  | 'SA_OPTIMIZATION'
-  | 'RESTORE_SCHEDULE'
-  | 'TEMPLATE_APPLIED'
-  | 'SAVE_SNAPSHOT'
-  | 'PUBLISH_SCHEDULE'
-  | 'UNDO_CHANGE'
-  | 'SYSTEM_RESET';
-
-export type ScheduleChangeEntityType =
-  | 'ScheduleAssignment'
-  | 'CourseOffering'
-  | 'ScheduleSnapshot'
-  | 'SYSTEM';
-
-export interface ScheduleChangeLog {
-  id: string;
-  changedAt: string;
-  changedBy: string;
-  userRole?: string;
-  action: ScheduleChangeAction;
-  entityType: ScheduleChangeEntityType;
-  entityId?: string;
-  courseId?: string;
-  courseCode?: string;
-  courseName?: string;
-  offeringId?: string;
-  semester?: number;
-  description: string;
-  before?: any;
-  after?: any;
-  isUndoable?: boolean;
-  undoneAt?: string;
-  undoneBy?: string;
-}
 
 

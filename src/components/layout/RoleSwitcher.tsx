@@ -79,32 +79,53 @@ export const RoleSwitcher: React.FC<RoleSwitcherProps> = ({
         type="button"
         id="btn-role-switcher"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 transition-all shadow-2xs"
+        className="flex items-center gap-1.5 sm:gap-2.5 px-2 sm:px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 transition-all shadow-2xs shrink-0 max-w-[170px] sm:max-w-none"
         aria-label="Ganti Peran Pengguna"
       >
-        <div className="flex items-center gap-2">
-          {getRoleBadge(currentUser.role)}
-          <div className="text-left hidden md:block">
-            <div className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[140px]">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+          {/* Mobile compact role icon/badge vs desktop full badge */}
+          <div className="sm:hidden flex items-center gap-1">
+            {currentUser.role === 'admin' ? (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                <ShieldCheck className="w-3.5 h-3.5 text-indigo-700" />
+                <span>Admin</span>
+              </span>
+            ) : currentUser.role === 'lecturer' ? (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                <Users className="w-3.5 h-3.5 text-amber-700" />
+                <span>Dosen</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200">
+                <GraduationCap className="w-3.5 h-3.5 text-emerald-700" />
+                <span>Mhs</span>
+              </span>
+            )}
+          </div>
+
+          <div className="hidden sm:block">
+            {getRoleBadge(currentUser.role)}
+          </div>
+
+          <div className="text-left hidden lg:block">
+            <div className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[130px]">
               {currentUser.name}
             </div>
-            <div className="text-[10px] text-slate-400 leading-tight flex items-center gap-1">
-              <span>
-                {currentUser.role === 'admin'
-                  ? 'Jurusan Teknik Elektro'
-                  : currentUser.role === 'lecturer'
-                  ? activeLecturer?.name || 'Dosen Pengampu'
-                  : 'Mahasiswa (View Only)'}
-              </span>
+            <div className="text-[10px] text-slate-400 leading-tight truncate max-w-[130px]">
+              {currentUser.role === 'admin'
+                ? 'Jurusan Teknik Elektro'
+                : currentUser.role === 'lecturer'
+                ? activeLecturer?.name || 'Dosen Pengampu'
+                : 'Mahasiswa (View Only)'}
             </div>
           </div>
         </div>
-        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Role Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute right-0 mt-2 w-64 sm:w-72 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
           <div className="px-3.5 py-2 border-b border-slate-100">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">PILIH PERAN PENGGUNA</p>
           </div>

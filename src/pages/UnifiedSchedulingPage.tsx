@@ -775,7 +775,7 @@ export const UnifiedSchedulingPage: React.FC<UnifiedSchedulingPageProps> = ({
 
       {/* STEP 1: PEMILIHAN MATA KULIAH & PROYEKSI MAHASISWA */}
       {activeStep === 'courses' && (
-        <div className="space-y-5">
+        <div className={`space-y-5 ${totalPlannedCoursesCount > 0 ? 'pb-24 sm:pb-20' : 'pb-4'}`}>
           {/* Top Filter & Curriculum Activation Bar */}
           <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-4">
             {/* Row 1: Academic Term & Curriculum Active Switches */}
@@ -1064,8 +1064,8 @@ export const UnifiedSchedulingPage: React.FC<UnifiedSchedulingPageProps> = ({
                               </div>
                             </div>
 
-                            {/* Course Table in Package */}
-                            <div className="overflow-x-auto">
+                            {/* Course Table for Desktop / Tablet */}
+                            <div className="hidden md:block overflow-x-auto">
                               <table className="w-full text-left text-xs text-slate-600">
                                 <thead className="bg-slate-50/60 text-slate-500 font-bold border-b border-slate-100">
                                   <tr>
@@ -1148,7 +1148,7 @@ export const UnifiedSchedulingPage: React.FC<UnifiedSchedulingPageProps> = ({
                                           )}
                                         </td>
 
-                                        {/* Student Count Input (Active only when checked; default empty; allows clear & seamless typing) */}
+                                        {/* Student Count Input */}
                                         <td className="p-3 align-top">
                                           {isSelected ? (
                                             isPracticum ? (
@@ -1247,6 +1247,145 @@ export const UnifiedSchedulingPage: React.FC<UnifiedSchedulingPageProps> = ({
                                 </tbody>
                               </table>
                             </div>
+
+                            {/* Mobile Stacked Cards for Course Selection (Screen < md) */}
+                            <div className="md:hidden divide-y divide-slate-100">
+                              {validCourses.map(({ course, kbkId }) => {
+                                const isSelected = Boolean(plannedCourses[course.id]);
+                                const rawInput = studentInputMap[course.id] ?? '';
+                                const isPracticum = checkIsPracticum(course);
+                                const isRawEmpty = isSelected && !isPracticum && rawInput.trim() === '';
+                                const parsedNum = rawInput.trim() === '' ? null : parseInt(rawInput, 10);
+                                const isBelowMin = isSelected && !isPracticum && parsedNum !== null && parsedNum >= 1 && parsedNum < MIN_STUDENTS_PER_CLASS;
+                                const isValidCount = isSelected && !isPracticum && parsedNum !== null && parsedNum >= MIN_STUDENTS_PER_CLASS;
+                                const balanced = isValidCount ? createBalancedSections(parsedNum, MAX_STUDENTS_PER_CLASS) : [];
+
+                                return (
+                                  <div
+                                    key={`mob-${course.id}`}
+                                    className={`p-3.5 space-y-2.5 transition-colors ${
+                                      isSelected ? 'bg-indigo-50/40' : 'bg-white'
+                                    }`}
+                                  >
+                                    <div className="flex items-start gap-3">
+                                      <div className="pt-0.5 shrink-0">
+                                        <input
+                                          id={`cb-mob-${course.id}`}
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={() =>
+                                            handleToggleCourse(
+                                              course,
+                                              pkg.semester,
+                                              pkg.curriculumYear,
+                                              kbkId
+                                            )
+                                          }
+                                          className="w-5 h-5 text-indigo-600 rounded-md border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                        />
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <label
+                                          htmlFor={`cb-mob-${course.id}`}
+                                          className="font-bold text-slate-900 text-xs leading-snug cursor-pointer block"
+                                        >
+                                          {course.name}
+                                        </label>
+                                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                          <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded font-semibold">
+                                            {course.code}
+                                          </span>
+                                          <span className="text-[11px] font-bold text-slate-700">
+                                            {course.sks} SKS
+                                          </span>
+                                          <span className="text-slate-300">•</span>
+                                          {isPracticum ? (
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                              Praktikum
+                                            </span>
+                                          ) : course.category === 'Pilihan' ? (
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                              Pilihan
+                                            </span>
+                                          ) : (
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                              Wajib
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Mobile Input & Status (when selected) */}
+                                    {isSelected && (
+                                      <div className="pl-8 pt-1.5 space-y-2 border-t border-indigo-100/60 mt-1">
+                                        {isPracticum ? (
+                                          <div className="text-[11px] text-purple-700 font-semibold flex items-center gap-1">
+                                            <span>🧪 Jadwal Khusus Praktikum Laboratorium</span>
+                                          </div>
+                                        ) : (
+                                          <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                              <span className="text-xs text-slate-700 font-semibold">
+                                                Jumlah Mahasiswa:
+                                              </span>
+                                              <div className="flex items-center gap-1.5">
+                                                <input
+                                                  id={`input-mob-${course.id}`}
+                                                  type="text"
+                                                  inputMode="numeric"
+                                                  placeholder="Jumlah"
+                                                  value={rawInput}
+                                                  onChange={(e) =>
+                                                    handleStudentInputChange(course.id, e.target.value)
+                                                  }
+                                                  onBlur={() =>
+                                                    handleStudentInputBlur(course.id)
+                                                  }
+                                                  className={`w-24 px-2.5 py-1 text-xs rounded-xl border font-bold text-slate-900 transition-all ${
+                                                    isRawEmpty
+                                                      ? 'border-rose-400 focus:ring-2 focus:ring-rose-400 bg-rose-50/20'
+                                                      : isBelowMin
+                                                      ? 'border-amber-400 focus:ring-2 focus:ring-amber-400 bg-amber-50/20'
+                                                      : 'border-slate-300 focus:ring-2 focus:ring-indigo-500 bg-white'
+                                                  }`}
+                                                />
+                                                <span className="text-xs text-slate-500 font-medium">mhs</span>
+                                              </div>
+                                            </div>
+
+                                            {isRawEmpty && (
+                                              <div className="text-[10px] text-rose-600 font-semibold flex items-center gap-1">
+                                                <span className="text-rose-500 font-bold">⚠</span>
+                                                <span>Jumlah mahasiswa wajib diisi</span>
+                                              </div>
+                                            )}
+
+                                            {isBelowMin && (
+                                              <div className="text-[10px] text-amber-700 font-semibold flex items-center gap-1">
+                                                <span className="text-amber-500 font-bold">⚠</span>
+                                                <span>Minimal 10 mhs untuk membuka rombel</span>
+                                              </div>
+                                            )}
+
+                                            {isValidCount && (
+                                              <div className="p-2 rounded-xl bg-indigo-50/80 border border-indigo-100 text-[11px] text-indigo-950 space-y-0.5">
+                                                <div className="font-bold text-indigo-900">
+                                                  Status: {balanced.length} Rombel Kelas
+                                                </div>
+                                                <div className="text-slate-600 font-medium">
+                                                  {balanced.map((b) => `${b.section}: ${b.studentCount} mhs`).join(', ')}
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         );
                       })}
@@ -1256,29 +1395,41 @@ export const UnifiedSchedulingPage: React.FC<UnifiedSchedulingPageProps> = ({
               })}
           </div>
 
-          {/* Bottom Sticky Action Bar */}
-          <div className="p-4 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md sticky bottom-4 z-20">
-            <div>
-              <div className="font-bold text-xs">
-                {totalPlannedCoursesCount} Mata Kuliah Terpilih ({totalPlannedStudentsCount} Total Mahasiswa Terencana)
+          {/* Bottom Sticky Action Bar (Only shown when selectedCourseIds > 0) */}
+          {totalPlannedCoursesCount > 0 && (
+            <div className="p-3.5 sm:p-4 bg-slate-900 text-white rounded-2xl flex items-center justify-between gap-3 shadow-xl sticky bottom-4 z-20 animate-in fade-in slide-in-from-bottom-4 duration-200 border border-slate-800">
+              <div className="min-w-0 flex-1">
+                {/* Desktop Display */}
+                <div className="hidden sm:block">
+                  <div className="font-bold text-xs text-white">
+                    {totalPlannedCoursesCount} Mata Kuliah Terpilih ({totalPlannedStudentsCount} Total Mahasiswa Terencana)
+                  </div>
+                  <div className="text-[11px] text-slate-400 truncate">
+                    {totalCalculatedSectionsCount} section rombel siap digenerate dan dialokasikan dosen.
+                  </div>
+                </div>
+                {/* Mobile Compact Display */}
+                <div className="sm:hidden">
+                  <div className="font-bold text-xs text-white truncate">
+                    {totalPlannedCoursesCount} MK • {totalPlannedStudentsCount} Mahasiswa
+                  </div>
+                  <div className="text-[10px] text-slate-400 truncate">
+                    {totalCalculatedSectionsCount} Rombel Siap
+                  </div>
+                </div>
               </div>
-              <div className="text-[11px] text-slate-400">
-                {totalPlannedCoursesCount === 0
-                  ? 'Pilih minimal 1 mata kuliah untuk melanjutkan proses penjadwalan.'
-                  : `${totalCalculatedSectionsCount} section rombel siap digenerate dan dialokasikan dosen.`}
-              </div>
-            </div>
 
-            <button
-              onClick={handleProceedToSections}
-              id="btn-next-to-sections"
-              disabled={totalPlannedCoursesCount === 0}
-              className="px-5 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span>Lanjut ke Pembagian Rombel ({totalPlannedCoursesCount} MK)</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
+              <button
+                onClick={handleProceedToSections}
+                id="btn-next-to-sections"
+                className="shrink-0 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs flex items-center justify-center gap-1.5 sm:gap-2 shadow-xs transition-all active:scale-95"
+              >
+                <span className="hidden xs:inline">Lanjut ke Pembagian Rombel</span>
+                <span className="xs:hidden">Lanjut</span>
+                <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 

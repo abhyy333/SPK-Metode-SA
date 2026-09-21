@@ -13,21 +13,28 @@ function lazyWithRetry<T extends React.ComponentType<any> = React.ComponentType<
   name?: string
 ): React.LazyExoticComponent<T> {
   return lazy<T>(async () => {
-    try {
-      const module = await factory();
-      if (name && module[name]) {
-        return { default: module[name] };
+    let lastError: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const module = await factory();
+        if (name && module[name]) {
+          return { default: module[name] };
+        }
+        if (module.default) {
+          return { default: module.default };
+        }
+        const firstExportKey = Object.keys(module)[0];
+        if (firstExportKey && module[firstExportKey]) {
+          return { default: module[firstExportKey] };
+        }
+        return { default: module };
+      } catch (err) {
+        lastError = err;
+        console.warn(`Module load error (attempt ${attempt + 1}/3) for ${name || 'component'}:`, err);
+        await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
       }
-      return { default: module.default || module[Object.keys(module)[0]] };
-    } catch (err) {
-      console.warn(`Module load error for ${name || 'component'}, retrying...`, err);
-      await new Promise((resolve) => setTimeout(resolve, 350));
-      const module = await factory();
-      if (name && module[name]) {
-        return { default: module[name] };
-      }
-      return { default: module.default || module[Object.keys(module)[0]] };
     }
+    throw lastError || new Error(`Failed to load module ${name || 'component'}`);
   });
 }
 
@@ -53,10 +60,10 @@ const LecturerSchedulePage = lazyWithRetry(() => import('./pages/lecturer/Lectur
 const LecturerAvailabilityPage = lazyWithRetry(() => import('./pages/lecturer/LecturerAvailabilityPage'), 'LecturerAvailabilityPage');
 
 // Pages - Student Portal (Lazy Loaded)
-const StudentSchedulePage = lazyWithRetry(() => import('./pages/student/StudentSchedulePage').then(m => ({ default: m.StudentSchedulePage })), 'StudentSchedulePage');
+const StudentSchedulePage = lazyWithRetry(() => import('./pages/student/StudentSchedulePage'), 'StudentSchedulePage');
 
 // Pages - History & Snapshots (Lazy Loaded)
-const ScheduleHistoryPage = lazyWithRetry(() => import('./pages/ScheduleHistoryPage').then(m => ({ default: m.ScheduleHistoryPage })), 'ScheduleHistoryPage');
+const ScheduleHistoryPage = lazyWithRetry(() => import('./pages/ScheduleHistoryPage'), 'ScheduleHistoryPage');
 
 // Algorithms
 import { generateInitialSchedule } from './algorithms/initialSchedule';
