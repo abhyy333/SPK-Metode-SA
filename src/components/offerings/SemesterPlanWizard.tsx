@@ -43,6 +43,7 @@ import {
   CoursePlanningItem,
   GenerationReport,
 } from '../../services/courseOfferingGeneratorService';
+import { MasterLecturerImportService } from '../../services/masterLecturerImportService';
 
 interface SemesterPlanWizardProps {
   curriculumPackages: CurriculumPackage[];
@@ -304,6 +305,12 @@ export const SemesterPlanWizard: React.FC<SemesterPlanWizardProps> = ({
       });
 
       onApplyPlan(report, replaceExisting);
+      try {
+        const period = academicTerm === 'ganjil' ? 'GANJIL' : 'GENAP';
+        MasterLecturerImportService.syncToCourseOfferings(period);
+      } catch (e) {
+        console.warn('Auto-assign sync error:', e);
+      }
       setIsConfirmModalOpen(false);
     } catch (err: any) {
       showToast('error', 'Gagal Generate Course Offering', err.message || 'Terjadi kesalahan.');

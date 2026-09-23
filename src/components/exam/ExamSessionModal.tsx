@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ExamSession } from '../../types';
 import { Modal } from '../ui/Modal';
 import { Plus, Trash2, Clock, Check, RefreshCw } from 'lucide-react';
@@ -25,7 +25,7 @@ export const ExamSessionModal: React.FC<ExamSessionModalProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
 
   // Update local state when prop changes
-  React.useEffect(() => {
+  useEffect(() => {
     setLocalSessions(sessions);
   }, [sessions, isOpen]);
 

@@ -40,7 +40,10 @@ import {
   ExamVersion,
   ExamChangeLog,
   ExamConfig,
+  ScheduleDraftMetadata,
 } from '../types';
+import { MasterLecturerAssignment, MasterLecturerValidationReport, MasterLecturerImportBatch } from '../types/masterLecturer';
+import { MasterLecturerService } from './masterLecturerService';
 import {
   INITIAL_COURSES,
   INITIAL_LECTURERS,
@@ -166,7 +169,19 @@ const GRADE_POINT_LOOKUP: Record<string, number> = {
   '-': 0.0,
 };
 
+export interface PersistentScheduleMeta {
+  initialized: boolean;
+  hasActiveSchedule: boolean;
+  activeScheduleId: string | null;
+  status: 'draft' | 'optimized' | 'published';
+  updatedAt: string;
+  deletedAt?: string | null;
+}
+
 const STORAGE_KEYS = {
+  SCHEDULE_STORAGE_INITIALIZED: 'elektro_sched_storage_initialized',
+  SCHEDULE_STATE_META: 'elektro_sched_schedule_state_meta',
+  ACTIVE_SCHEDULE_ID: 'elektro_sched_active_schedule_id',
   CURRICULA: 'elektro_sched_curricula',
   COURSES: 'elektro_sched_courses',
   LECTURERS: 'elektro_sched_lecturers',
@@ -208,6 +223,9 @@ const STORAGE_KEYS = {
   EXAM_CHANGE_LOGS: 'elektro_sched_exam_change_logs',
   EXAM_PUBLISH_STATUS: 'elektro_sched_exam_publish_status',
   EXAM_CONFIG: 'elektro_sched_exam_config',
+  MASTER_LECTURERS: 'elektro_sched_master_lecturers_v2',
+  MASTER_LECTURER_IMPORT_HISTORY: 'elektro_sched_master_lecturer_import_history',
+  SCHEDULE_DRAFT_METADATA: 'elektro_sched_draft_metadata',
 };
 
 // In-memory runtime cache to eliminate repeated JSON.parse calls on every render
@@ -215,6 +233,117 @@ const memoryCache: Record<string, any> = {};
 
 // Debounce timer map for background writes
 const writeTimers: Record<string, any> = {};
+
+function sanitizeOptimizationResult(result: OptimizationResult | null): OptimizationResult | null {
+  if (!result) return null;
+
+  // Downsample convergence history to at most 50 points
+  let convergenceHistory = result.convergenceHistory || [];
+  if (convergenceHistory.length > 50) {
+    const step = Math.ceil(convergenceHistory.length / 50);
+    convergenceHistory = convergenceHistory.filter((_, idx) => idx === 0 || idx === convergenceHistory.length - 1 || idx % step === 0);
+  }
+
+  // Limit sample trace to last 20 items
+  let sampleTrace = result.sampleTrace || [];
+  if (sampleTrace.length > 20) {
+    sampleTrace = sampleTrace.slice(-20);
+  }
+
+  // Limit conflict items to top 30
+  const initialConflicts = result.initialConflicts ? {
+    ...result.initialConflicts,
+    items: (result.initialConflicts.items || []).slice(0, 30)
+  } : result.initialConflicts;
+
+  const bestConflicts = result.bestConflicts ? {
+    ...result.bestConflicts,
+    items: (result.bestConflicts.items || []).slice(0, 30)
+  } : result.bestConflicts;
+
+  return {
+    ...result,
+    convergenceHistory,
+    sampleTrace,
+    initialConflicts,
+    bestConflicts,
+  };
+}
+
+function lightenResultForHistory(result: OptimizationResult): OptimizationResult {
+  const sanitized = sanitizeOptimizationResult(result) || result;
+  return {
+    ...sanitized,
+    initialSchedule: [],
+    bestSchedule: [],
+  };
+}
+
+function safeLocalStorageSet(key: string, value: any): void {
+  const json = JSON.stringify(value);
+  try {
+    localStorage.setItem(key, json);
+  } catch (err: any) {
+    if (
+      err?.name === 'QuotaExceededError' ||
+      err?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+      err?.code === 22 ||
+      err?.code === 1014
+    ) {
+      console.warn(`StorageService: QuotaExceededError for ${key}. Executing emergency storage pruning...`);
+      try {
+        // Prune history to top 1 lightened item
+        const rawHistory = localStorage.getItem(STORAGE_KEYS.HISTORY);
+        if (rawHistory && key !== STORAGE_KEYS.HISTORY) {
+          try {
+            const h = JSON.parse(rawHistory);
+            if (Array.isArray(h) && h.length > 0) {
+              const pruned = h.slice(0, 1).map(lightenResultForHistory);
+              localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(pruned));
+            } else {
+              localStorage.removeItem(STORAGE_KEYS.HISTORY);
+            }
+          } catch {
+            localStorage.removeItem(STORAGE_KEYS.HISTORY);
+          }
+        } else if (key === STORAGE_KEYS.HISTORY) {
+          localStorage.removeItem(STORAGE_KEYS.HISTORY);
+        }
+
+        // Prune or remove large logs
+        localStorage.removeItem(STORAGE_KEYS.AUDIT_LOGS);
+        localStorage.removeItem(STORAGE_KEYS.CHANGE_LOG);
+        localStorage.removeItem(STORAGE_KEYS.SCHEDULE_CHANGE_LOGS);
+        localStorage.removeItem(STORAGE_KEYS.MASTER_LECTURER_IMPORT_HISTORY);
+        localStorage.removeItem(STORAGE_KEYS.OPTIMIZATION_RUNS);
+
+        // Prune snapshots if needed
+        const rawSnapshots = localStorage.getItem(STORAGE_KEYS.SCHEDULE_SNAPSHOTS);
+        if (rawSnapshots && key !== STORAGE_KEYS.SCHEDULE_SNAPSHOTS) {
+          try {
+            const snaps = JSON.parse(rawSnapshots);
+            if (Array.isArray(snaps) && snaps.length > 2) {
+              localStorage.setItem(STORAGE_KEYS.SCHEDULE_SNAPSHOTS, JSON.stringify(snaps.slice(0, 2)));
+            }
+          } catch {
+            localStorage.removeItem(STORAGE_KEYS.SCHEDULE_SNAPSHOTS);
+          }
+        }
+      } catch (pruneErr) {
+        console.error('StorageService: Error during emergency storage pruning', pruneErr);
+      }
+
+      // Retry after pruning
+      try {
+        localStorage.setItem(key, json);
+      } catch (finalErr) {
+        console.warn(`StorageService: Failed to save ${key} to localStorage after pruning. Value preserved in memory cache.`, finalErr);
+      }
+    } else {
+      console.error(`StorageService: Error saving ${key}`, err);
+    }
+  }
+}
 
 function getCached<T>(key: string, defaultValue: T): T {
   if (memoryCache[key] !== undefined) {
@@ -239,18 +368,10 @@ function setCached<T>(key: string, value: T, debounceMs: number = 0): void {
   if (debounceMs > 0) {
     if (writeTimers[key]) clearTimeout(writeTimers[key]);
     writeTimers[key] = setTimeout(() => {
-      try {
-        localStorage.setItem(key, JSON.stringify(value));
-      } catch (err) {
-        console.error(`StorageService: Error saving ${key}`, err);
-      }
+      safeLocalStorageSet(key, value);
     }, debounceMs);
   } else {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (err) {
-      console.error(`StorageService: Error saving ${key}`, err);
-    }
+    safeLocalStorageSet(key, value);
   }
 }
 
@@ -265,6 +386,12 @@ function removeCached(key: string): void {
 
 export class StorageService {
   public static init(): void {
+    // 1. Mark schedule storage as permanently initialized
+    localStorage.setItem(STORAGE_KEYS.SCHEDULE_STORAGE_INITIALIZED, 'true');
+
+    // 2. Ensure explicit persistent schedule state exists
+    this.getScheduleStateMeta();
+
     if (!localStorage.getItem(STORAGE_KEYS.CURRICULA)) {
       this.saveCurricula(INITIAL_CURRICULA);
     }
@@ -308,7 +435,7 @@ export class StorageService {
       }
     }
     if (!localStorage.getItem(STORAGE_KEYS.COURSE_OFFERINGS)) {
-      this.saveCourseOfferings(INITIAL_COURSE_OFFERINGS);
+      this.saveCourseOfferings([]);
     }
     if (!localStorage.getItem(STORAGE_KEYS.STUDENT_ENROLLMENTS)) {
       this.saveStudentEnrollments(INITIAL_ENROLLMENTS);
@@ -326,7 +453,7 @@ export class StorageService {
         status: 'draft',
         createdAt: new Date().toISOString(),
         createdBy: 'Administrator',
-        scheduleAssignments: this.getCurrentSchedule() || [],
+        scheduleAssignments: [],
         notes: 'Versi dasar sistem',
       };
       this.saveScheduleVersions([initialVer]);
@@ -568,7 +695,8 @@ export class StorageService {
 
   // Course Offerings
   public static getCourseOfferings(): CourseOffering[] {
-    const raw = getCached(STORAGE_KEYS.COURSE_OFFERINGS, INITIAL_COURSE_OFFERINGS);
+    const raw = getCached<CourseOffering[]>(STORAGE_KEYS.COURSE_OFFERINGS, []);
+    if (!raw || !Array.isArray(raw)) return [];
     const seen = new Set<string>();
     const deduplicated: CourseOffering[] = [];
     for (const off of raw) {
@@ -609,6 +737,17 @@ export class StorageService {
       }
     }
     setCached(STORAGE_KEYS.COURSE_OFFERINGS, deduplicated, 200);
+  }
+
+  // Schedule Draft Creation Metadata (Mode, Template Type, Selected Courses)
+  public static getScheduleDraftMetadata(): ScheduleDraftMetadata | null {
+    return getCached(STORAGE_KEYS.SCHEDULE_DRAFT_METADATA, null);
+  }
+  public static saveScheduleDraftMetadata(metadata: ScheduleDraftMetadata): void {
+    setCached(STORAGE_KEYS.SCHEDULE_DRAFT_METADATA, metadata, 200);
+  }
+  public static clearScheduleDraftMetadata(): void {
+    setCached(STORAGE_KEYS.SCHEDULE_DRAFT_METADATA, null, 0);
   }
 
   // Student Enrollments
@@ -783,10 +922,19 @@ export class StorageService {
 
   // Rooms
   public static getRooms(): Room[] {
-    return getCached(STORAGE_KEYS.ROOMS, INITIAL_ROOMS);
+    const cached = getCached<Room[] | null>(STORAGE_KEYS.ROOMS, null);
+    if (!cached || !Array.isArray(cached) || cached.length === 0 || cached.some(r => r.id === 'rm-101' || r.code === 'TE-101')) {
+      this.saveRooms(INITIAL_ROOMS);
+      return INITIAL_ROOMS;
+    }
+    return cached;
   }
   public static saveRooms(rooms: Room[]): void {
     setCached(STORAGE_KEYS.ROOMS, rooms, 200);
+  }
+  public static resetRoomsToDefault(): Room[] {
+    this.saveRooms(INITIAL_ROOMS);
+    return INITIAL_ROOMS;
   }
 
   // Timeslots (Sesi Waktu)
@@ -810,19 +958,109 @@ export class StorageService {
     return reindexed;
   }
 
-  // Schedules
-  public static getCurrentSchedule(): ScheduleAssignment[] | null {
-    return getCached(STORAGE_KEYS.CURRENT_SCHEDULE, null);
+  // Schedules & Persistent State Meta
+  public static isScheduleStorageInitialized(): boolean {
+    return localStorage.getItem(STORAGE_KEYS.SCHEDULE_STORAGE_INITIALIZED) === 'true';
   }
-  public static saveCurrentSchedule(schedule: ScheduleAssignment[]): void {
-    setCached(STORAGE_KEYS.CURRENT_SCHEDULE, schedule, 100);
+
+  public static getScheduleStateMeta(): PersistentScheduleMeta {
+    const raw = getCached<PersistentScheduleMeta | null>(STORAGE_KEYS.SCHEDULE_STATE_META, null);
+    if (raw && typeof raw === 'object' && typeof raw.hasActiveSchedule === 'boolean') {
+      return raw;
+    }
+
+    // Inspect current storage to determine initialized state
+    const rawCurrent = localStorage.getItem(STORAGE_KEYS.CURRENT_SCHEDULE);
+    let hasSchedule = false;
+    if (rawCurrent) {
+      try {
+        const parsed = JSON.parse(rawCurrent);
+        hasSchedule = Array.isArray(parsed) && parsed.length > 0;
+      } catch {
+        hasSchedule = false;
+      }
+    }
+
+    const currentStatus = this.getScheduleStatus();
+    const meta: PersistentScheduleMeta = {
+      initialized: true,
+      hasActiveSchedule: hasSchedule,
+      activeScheduleId: hasSchedule ? this.getActiveScheduleId() : null,
+      status: currentStatus,
+      updatedAt: new Date().toISOString(),
+    };
+    setCached(STORAGE_KEYS.SCHEDULE_STATE_META, meta, 100);
+    return meta;
+  }
+
+  public static updateScheduleStateMeta(partial: Partial<PersistentScheduleMeta>): void {
+    const current = this.getScheduleStateMeta();
+    const updated: PersistentScheduleMeta = {
+      ...current,
+      ...partial,
+      initialized: true,
+      updatedAt: new Date().toISOString(),
+    };
+    setCached(STORAGE_KEYS.SCHEDULE_STATE_META, updated, 100);
+  }
+
+  public static hasActiveSchedule(): boolean {
+    const meta = this.getScheduleStateMeta();
+    if (!meta.hasActiveSchedule) return false;
+    const current = getCached<ScheduleAssignment[] | null>(STORAGE_KEYS.CURRENT_SCHEDULE, null);
+    return Array.isArray(current) && current.length > 0;
+  }
+
+  public static getActiveScheduleId(): string | null {
+    return localStorage.getItem(STORAGE_KEYS.ACTIVE_SCHEDULE_ID) || null;
+  }
+
+  public static setActiveScheduleId(id: string | null): void {
+    if (id) {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_SCHEDULE_ID, id);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.ACTIVE_SCHEDULE_ID);
+    }
+  }
+
+  public static getCurrentSchedule(): ScheduleAssignment[] | null {
+    if (!this.hasActiveSchedule()) {
+      return null;
+    }
+    const current = getCached<ScheduleAssignment[] | null>(STORAGE_KEYS.CURRENT_SCHEDULE, null);
+    if (!current || !Array.isArray(current) || current.length === 0) {
+      return null;
+    }
+    return current;
+  }
+
+  public static saveCurrentSchedule(schedule: ScheduleAssignment[] | null | undefined): void {
+    if (!schedule || schedule.length === 0) {
+      setCached(STORAGE_KEYS.CURRENT_SCHEDULE, null);
+      this.setActiveScheduleId(null);
+      this.updateScheduleStateMeta({
+        hasActiveSchedule: false,
+        activeScheduleId: null,
+      });
+    } else {
+      setCached(STORAGE_KEYS.CURRENT_SCHEDULE, schedule, 100);
+      this.updateScheduleStateMeta({
+        hasActiveSchedule: true,
+      });
+    }
   }
 
   public static getInitialSchedule(): ScheduleAssignment[] | null {
+    if (!this.hasActiveSchedule()) return null;
     return getCached(STORAGE_KEYS.INITIAL_SCHEDULE, null);
   }
-  public static saveInitialSchedule(schedule: ScheduleAssignment[]): void {
-    setCached(STORAGE_KEYS.INITIAL_SCHEDULE, schedule, 100);
+
+  public static saveInitialSchedule(schedule: ScheduleAssignment[] | null | undefined): void {
+    if (!schedule || schedule.length === 0) {
+      setCached(STORAGE_KEYS.INITIAL_SCHEDULE, null);
+    } else {
+      setCached(STORAGE_KEYS.INITIAL_SCHEDULE, schedule, 100);
+    }
   }
 
   // Optimization Results & History
@@ -830,8 +1068,9 @@ export class StorageService {
     return getCached(STORAGE_KEYS.OPTIMIZATION_RESULT, null);
   }
   public static saveActiveOptimizationResult(result: OptimizationResult): void {
-    setCached(STORAGE_KEYS.OPTIMIZATION_RESULT, result);
-    this.addHistory(result);
+    const sanitized = sanitizeOptimizationResult(result) || result;
+    setCached(STORAGE_KEYS.OPTIMIZATION_RESULT, sanitized);
+    this.addHistory(sanitized);
   }
   public static addOptimizationResult(result: OptimizationResult): void {
     this.saveActiveOptimizationResult(result);
@@ -845,7 +1084,8 @@ export class StorageService {
   }
   public static addHistory(result: OptimizationResult): void {
     const history = this.getHistory();
-    const updated = [result, ...history.filter(h => h.id !== result.id)].slice(0, 20);
+    const lightened = lightenResultForHistory(result);
+    const updated = [lightened, ...history.filter(h => h.id !== result.id)].slice(0, 5);
     setCached(STORAGE_KEYS.HISTORY, updated);
   }
   public static clearHistory(): void {
@@ -1402,6 +1642,7 @@ export class StorageService {
   }
   public static setScheduleStatus(status: 'draft' | 'optimized' | 'published'): void {
     this.saveScheduleStatus(status);
+    this.updateScheduleStateMeta({ status });
   }
 
   public static resetToDefaults(): void {
@@ -1438,6 +1679,19 @@ export class StorageService {
     // 2. Clear generated course offerings and restore initial empty/draft offerings
     this.saveCourseOfferings([]);
     this.saveScheduleStatus('draft');
+    this.setActiveScheduleId(null);
+    this.updateScheduleStateMeta({
+      hasActiveSchedule: false,
+      activeScheduleId: null,
+      status: 'draft',
+      deletedAt: new Date().toISOString(),
+    });
+
+    const versions = this.getScheduleVersions();
+    const updatedVersions = versions.map((v) =>
+      this.normalizeStatus(v.status) === 'Diterbitkan' ? { ...v, status: 'Digantikan' as const } : v
+    );
+    this.saveScheduleVersions(updatedVersions);
 
     this.addScheduleChangeLog({
       entityType: 'SYSTEM',
@@ -1460,6 +1714,75 @@ export class StorageService {
       timeslots: this.getTimeslots(),
       packages: this.getCurriculumPackages(),
     };
+  }
+
+  /**
+   * Atomically deletes active schedule assignments and runtime optimization state,
+   * without affecting Master Data (Dosen, Mata Kuliah, Ruangan, Sesi, Kurikulum).
+   * Marks hasActiveSchedule = false, activeScheduleId = null, scheduleStatus = 'draft'.
+   * Any previously published version is converted to 'Digantikan' so it cannot auto-restore.
+   */
+  public static deleteActiveSchedule(user?: CurrentUser, saveSnapshot: boolean = false): void {
+    const currentAssignments = getCached<ScheduleAssignment[] | null>(STORAGE_KEYS.CURRENT_SCHEDULE, null);
+
+    // 1. Optionally save backup version before deletion (status 'Digantikan', NOT 'Diterbitkan')
+    if (saveSnapshot && currentAssignments && currentAssignments.length > 0) {
+      const backupName = `Cadangan Sebelum Hapus (${new Date().toLocaleDateString('id-ID')})`;
+      this.createScheduleVersion(
+        backupName,
+        currentAssignments,
+        'Digantikan',
+        user?.name || 'Administrator',
+        'Cadangan otomatis sebelum penghapusan jadwal aktif'
+      );
+    }
+
+    // 2. Un-publish all versions: ensure no version holds 'Diterbitkan' status
+    const versions = this.getScheduleVersions();
+    const updatedVersions = versions.map((v) =>
+      this.normalizeStatus(v.status) === 'Diterbitkan' ? { ...v, status: 'Digantikan' as const } : v
+    );
+    this.saveScheduleVersions(updatedVersions);
+
+    // 3. Atomically clear schedule runtime keys
+    setCached(STORAGE_KEYS.CURRENT_SCHEDULE, null);
+    setCached(STORAGE_KEYS.INITIAL_SCHEDULE, null);
+    setCached(STORAGE_KEYS.OPTIMIZATION_RESULT, null);
+    removeCached(STORAGE_KEYS.CURRENT_SCHEDULE);
+    removeCached(STORAGE_KEYS.INITIAL_SCHEDULE);
+    removeCached(STORAGE_KEYS.OPTIMIZATION_RESULT);
+
+    // 4. Reset schedule status to 'draft'
+    this.saveScheduleStatus('draft');
+
+    // 5. Clear draft metadata & working offerings
+    this.clearScheduleDraftMetadata();
+    this.saveCourseOfferings([]);
+
+    // 6. Update explicit persistent metadata
+    this.setActiveScheduleId(null);
+    this.updateScheduleStateMeta({
+      hasActiveSchedule: false,
+      activeScheduleId: null,
+      status: 'draft',
+      deletedAt: new Date().toISOString(),
+    });
+
+    // 7. Audit log entry
+    this.addScheduleChangeLog({
+      entityType: 'SYSTEM',
+      entityId: 'delete-schedule',
+      action: 'DELETE_ACTIVE_SCHEDULE',
+      before: currentAssignments ? `${currentAssignments.length} alokasi` : null,
+      after: null,
+      description: 'Penghapusan jadwal aktif oleh Admin (Master Data tetap utuh)',
+      changedBy: user?.name || this.getCurrentUser().name,
+    });
+
+    // 8. Dispatch notification event for runtime components
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('active-schedule-deleted'));
+    }
   }
 
   public static getScheduleVersion(): string {
@@ -1487,75 +1810,7 @@ export class StorageService {
 
   // Schedule Versions (Requirement: Multi-version schedule management for Jadwal Perkuliahan)
   public static getScheduleVersions(): ScheduleVersion[] {
-    const list = getCached<ScheduleVersion[]>(STORAGE_KEYS.SCHEDULE_VERSIONS, []);
-    if (list.length > 0) return list;
-
-    // Seed default versions if none exist matching the requirement (Versi 1, Versi 2, Versi 3)
-    const currentAssignments = this.getCurrentSchedule() || [];
-    const sampleVersions: ScheduleVersion[] = [
-      {
-        id: 'ver-lec-v3',
-        scheduleType: 'perkuliahan',
-        academicYear: '2026/2027 Ganjil',
-        academicTerm: 'Ganjil',
-        versionNumber: 3,
-        name: 'Versi 3',
-        status: 'Diterbitkan',
-        createdAt: new Date().toISOString(),
-        createdBy: 'Administrator',
-        publishedAt: new Date().toISOString(),
-        publishedBy: 'Administrator',
-        scheduleAssignments: currentAssignments,
-        notes: 'Jadwal resmi diterbitkan hasil optimasi Simulated Annealing tanpa bentrok.',
-        summary: {
-          totalAssignments: currentAssignments.length,
-          totalOfferings: currentAssignments.length,
-          conflictCount: 0,
-        },
-      },
-      {
-        id: 'ver-lec-v2',
-        scheduleType: 'perkuliahan',
-        academicYear: '2026/2027 Ganjil',
-        academicTerm: 'Ganjil',
-        versionNumber: 2,
-        name: 'Versi 2',
-        status: 'Digantikan',
-        createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-        createdBy: 'Administrator',
-        publishedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-        publishedBy: 'Administrator',
-        scheduleAssignments: currentAssignments,
-        notes: 'Versi sebelumnya sebelum penyesuaian ruang dan dosen pengampu.',
-        summary: {
-          totalAssignments: currentAssignments.length,
-          totalOfferings: currentAssignments.length,
-          conflictCount: 2,
-        },
-      },
-      {
-        id: 'ver-lec-v1',
-        scheduleType: 'perkuliahan',
-        academicYear: '2026/2027 Ganjil',
-        academicTerm: 'Ganjil',
-        versionNumber: 1,
-        name: 'Versi 1',
-        status: 'Digantikan',
-        createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-        createdBy: 'Administrator',
-        scheduleAssignments: currentAssignments,
-        notes: 'Draft awal alokasi slot waktu perkuliahan.',
-        summary: {
-          totalAssignments: currentAssignments.length,
-          totalOfferings: currentAssignments.length,
-          conflictCount: 5,
-        },
-      },
-    ];
-
-    this.saveScheduleVersions(sampleVersions);
-    this.saveScheduleVersion('ver-lec-v3');
-    return sampleVersions;
+    return getCached<ScheduleVersion[]>(STORAGE_KEYS.SCHEDULE_VERSIONS, []);
   }
 
   public static saveScheduleVersions(versions: ScheduleVersion[]): void {
@@ -1569,13 +1824,21 @@ export class StorageService {
   }
 
   public static getActiveScheduleVersion(): ScheduleVersion | null {
-    const versions = this.getScheduleVersions();
-    // Prioritize published status
-    const publishedVer = versions.find(v => this.normalizeStatus(v.status) === 'Diterbitkan');
-    if (publishedVer) return publishedVer;
+    if (!this.hasActiveSchedule()) return null;
+    const currentAssignments = this.getCurrentSchedule();
+    if (!currentAssignments || currentAssignments.length === 0) return null;
 
-    const activeVerId = this.getScheduleVersion();
-    return versions.find(v => v.id === activeVerId || v.name === activeVerId) || versions[0] || null;
+    const versions = this.getScheduleVersions();
+    if (versions.length === 0) return null;
+
+    // Prioritize published status ONLY if current schedule status is published
+    if (this.getScheduleStatus() === 'published') {
+      const publishedVer = versions.find(v => this.normalizeStatus(v.status) === 'Diterbitkan');
+      if (publishedVer) return publishedVer;
+    }
+
+    const activeVerId = this.getActiveScheduleId() || this.getScheduleVersion();
+    return versions.find(v => v.id === activeVerId || v.name === activeVerId) || null;
   }
 
   public static publishScheduleVersion(versionId: string, publishedBy: string = 'Administrator'): ScheduleVersion | null {
@@ -1604,8 +1867,14 @@ export class StorageService {
 
     this.saveScheduleVersions(updatedVersions);
     this.saveScheduleVersion(targetVer.id);
+    this.setActiveScheduleId(targetVer.id);
     this.saveCurrentSchedule(targetVer.scheduleAssignments || []);
     this.setScheduleStatus('published');
+    this.updateScheduleStateMeta({
+      hasActiveSchedule: true,
+      activeScheduleId: targetVer.id,
+      status: 'published',
+    });
 
     // Audit log
     this.addAuditLog({
@@ -1625,7 +1894,7 @@ export class StorageService {
   public static createScheduleVersion(
     name: string,
     assignments: ScheduleAssignment[],
-    status: 'Draft' | 'Diterbitkan' = 'Draft',
+    status: 'Draft' | 'Diterbitkan' | 'Digantikan' = 'Draft',
     createdBy: string = 'Administrator',
     notes?: string
   ): ScheduleVersion {
@@ -1661,8 +1930,14 @@ export class StorageService {
       ];
       this.saveScheduleVersions(updatedVersions);
       this.saveScheduleVersion(newVer.id);
+      this.setActiveScheduleId(newVer.id);
       this.saveCurrentSchedule(assignments);
       this.setScheduleStatus('published');
+      this.updateScheduleStateMeta({
+        hasActiveSchedule: true,
+        activeScheduleId: newVer.id,
+        status: 'published',
+      });
     } else {
       this.saveScheduleVersions([newVer, ...currentVersions]);
     }
@@ -2289,10 +2564,10 @@ export class StorageService {
 
   public static getExamSessions(): ExamSession[] {
     const defaultSessions: ExamSession[] = [
-      { id: 'ex-ses-1', name: 'Sesi 1', startTime: '07:30', endTime: '09:00', durationMinutes: 90, isActive: true, orderIndex: 1 },
-      { id: 'ex-ses-2', name: 'Sesi 2', startTime: '09:30', endTime: '11:00', durationMinutes: 90, isActive: true, orderIndex: 2 },
-      { id: 'ex-ses-3', name: 'Sesi 3', startTime: '13:00', endTime: '14:30', durationMinutes: 90, isActive: true, orderIndex: 3 },
-      { id: 'ex-ses-4', name: 'Sesi 4', startTime: '15:00', endTime: '16:30', durationMinutes: 90, isActive: true, orderIndex: 4 },
+      { id: 'ex-ses-1', name: 'Sesi 1 (07:50 - 09:30)', startTime: '07:50', endTime: '09:30', durationMinutes: 100, isActive: true, orderIndex: 1 },
+      { id: 'ex-ses-2', name: 'Sesi 2 (09:30 - 11:10)', startTime: '09:30', endTime: '11:10', durationMinutes: 100, isActive: true, orderIndex: 2 },
+      { id: 'ex-ses-3', name: 'Sesi 3 (12:50 - 14:30)', startTime: '12:50', endTime: '14:30', durationMinutes: 100, isActive: true, orderIndex: 3 },
+      { id: 'ex-ses-4', name: 'Sesi 4 (15:20 - 17:00)', startTime: '15:20', endTime: '17:00', durationMinutes: 100, isActive: true, orderIndex: 4 },
     ];
     const sessions = getCached<ExamSession[]>(STORAGE_KEYS.EXAM_SESSIONS, defaultSessions);
     // Sort automatically by startTime
@@ -2307,10 +2582,10 @@ export class StorageService {
 
   public static resetDefaultExamSessions(): ExamSession[] {
     const defaultSessions: ExamSession[] = [
-      { id: 'ex-ses-1', name: 'Sesi 1', startTime: '07:30', endTime: '09:00', durationMinutes: 90, isActive: true, orderIndex: 1 },
-      { id: 'ex-ses-2', name: 'Sesi 2', startTime: '09:30', endTime: '11:00', durationMinutes: 90, isActive: true, orderIndex: 2 },
-      { id: 'ex-ses-3', name: 'Sesi 3', startTime: '13:00', endTime: '14:30', durationMinutes: 90, isActive: true, orderIndex: 3 },
-      { id: 'ex-ses-4', name: 'Sesi 4', startTime: '15:00', endTime: '16:30', durationMinutes: 90, isActive: true, orderIndex: 4 },
+      { id: 'ex-ses-1', name: 'Sesi 1 (07:50 - 09:30)', startTime: '07:50', endTime: '09:30', durationMinutes: 100, isActive: true, orderIndex: 1 },
+      { id: 'ex-ses-2', name: 'Sesi 2 (09:30 - 11:10)', startTime: '09:30', endTime: '11:10', durationMinutes: 100, isActive: true, orderIndex: 2 },
+      { id: 'ex-ses-3', name: 'Sesi 3 (12:50 - 14:30)', startTime: '12:50', endTime: '14:30', durationMinutes: 100, isActive: true, orderIndex: 3 },
+      { id: 'ex-ses-4', name: 'Sesi 4 (15:20 - 17:00)', startTime: '15:20', endTime: '17:00', durationMinutes: 100, isActive: true, orderIndex: 4 },
     ];
     setCached(STORAGE_KEYS.EXAM_SESSIONS, defaultSessions, 0);
     return defaultSessions;
@@ -2388,179 +2663,37 @@ export class StorageService {
     academicTerm: AcademicTerm = 'Ganjil'
   ): ExamOffering[] {
     const key = this.getExamKey(STORAGE_KEYS.EXAM_OFFERINGS, examType, academicYear, academicTerm);
-    
-    // Seed realistic initial UTS dataset if key does not exist
-    if (examType === 'UTS' && memoryCache[key] === undefined && !localStorage.getItem(key)) {
-      const initialUtsOfferings: ExamOffering[] = [
-        {
-          id: 'ex-uts-1',
-          examType: 'UTS',
-          academicYear: '2026/2027',
-          academicTerm: 'Ganjil',
-          courseId: 'crs-mwk1071101',
-          courseCode: 'MWK1071101',
-          courseName: 'Agama',
-          curriculumYear: 2026,
-          semester: 1,
-          sectionName: 'A',
-          studentCount: 37,
-          examDate: '2026-10-12',
-          examSessionId: 'ex-ses-1',
-          roomIds: ['rm-101'],
-          supervisorLecturerIds: ['lec-1'],
-          lecturerIds: ['lec-1'],
-          durationMinutes: 90,
-          status: 'scheduled',
-        },
-        {
-          id: 'ex-uts-2',
-          examType: 'UTS',
-          academicYear: '2026/2027',
-          academicTerm: 'Ganjil',
-          courseId: 'crs-mwk1071101',
-          courseCode: 'MWK1071101',
-          courseName: 'Agama',
-          curriculumYear: 2026,
-          semester: 1,
-          sectionName: 'B',
-          studentCount: 37,
-          examDate: '2026-10-12',
-          examSessionId: 'ex-ses-1',
-          roomIds: ['rm-102'],
-          supervisorLecturerIds: ['lec-2'],
-          lecturerIds: ['lec-1'],
-          durationMinutes: 90,
-          status: 'scheduled',
-        },
-        {
-          id: 'ex-uts-3',
-          examType: 'UTS',
-          academicYear: '2026/2027',
-          academicTerm: 'Ganjil',
-          courseId: 'crs-mwk1071101',
-          courseCode: 'MWK1071101',
-          courseName: 'Agama',
-          curriculumYear: 2026,
-          semester: 1,
-          sectionName: 'C',
-          studentCount: 36,
-          examDate: '2026-10-12',
-          examSessionId: 'ex-ses-1',
-          roomIds: ['rm-201'],
-          supervisorLecturerIds: ['lec-3'],
-          lecturerIds: ['lec-1'],
-          durationMinutes: 90,
-          status: 'scheduled',
-        },
-        {
-          id: 'ex-uts-4',
-          examType: 'UTS',
-          academicYear: '2026/2027',
-          academicTerm: 'Ganjil',
-          courseId: 'crs-fbs2122',
-          courseCode: 'FBS2122',
-          courseName: 'Rangkaian Listrik II',
-          curriculumYear: 2022,
-          semester: 3,
-          sectionName: 'A',
-          studentCount: 38,
-          examDate: '2026-10-13',
-          examSessionId: 'ex-ses-2',
-          roomIds: ['rm-101'],
-          supervisorLecturerIds: ['lec-4'],
-          lecturerIds: ['lec-2'],
-          durationMinutes: 90,
-          status: 'scheduled',
-        },
-        {
-          id: 'ex-uts-5',
-          examType: 'UTS',
-          academicYear: '2026/2027',
-          academicTerm: 'Ganjil',
-          courseId: 'crs-fbs2122',
-          courseCode: 'FBS2122',
-          courseName: 'Rangkaian Listrik II',
-          curriculumYear: 2022,
-          semester: 3,
-          sectionName: 'B',
-          studentCount: 37,
-          examDate: '2026-10-13',
-          examSessionId: 'ex-ses-2',
-          roomIds: ['rm-102'],
-          supervisorLecturerIds: ['lec-5'],
-          lecturerIds: ['lec-2'],
-          durationMinutes: 90,
-          status: 'scheduled',
-        },
-        {
-          id: 'ex-uts-6',
-          examType: 'UTS',
-          academicYear: '2026/2027',
-          academicTerm: 'Ganjil',
-          courseId: 'crs-mkb1075120',
-          courseCode: 'MKB1075120',
-          courseName: 'Basis Data',
-          curriculumYear: 2026,
-          semester: 5,
-          kbkId: 'kbk-komputer',
-          sectionName: 'A',
-          studentCount: 34,
-          examDate: '2026-10-14',
-          examSessionId: 'ex-ses-1',
-          roomIds: ['rm-201'],
-          supervisorLecturerIds: ['lec-6'],
-          lecturerIds: ['lec-5'],
-          durationMinutes: 90,
-          status: 'scheduled',
-        },
-        {
-          id: 'ex-uts-7',
-          examType: 'UTS',
-          academicYear: '2026/2027',
-          academicTerm: 'Ganjil',
-          courseId: 'crs-mkb1075120',
-          courseCode: 'MKB1075120',
-          courseName: 'Basis Data',
-          curriculumYear: 2026,
-          semester: 5,
-          kbkId: 'kbk-komputer',
-          sectionName: 'B',
-          studentCount: 34,
-          examDate: '2026-10-14',
-          examSessionId: 'ex-ses-1',
-          roomIds: ['rm-202'],
-          supervisorLecturerIds: ['lec-7'],
-          lecturerIds: ['lec-5'],
-          durationMinutes: 90,
-          status: 'scheduled',
-        },
-        {
-          id: 'ex-uts-8',
-          examType: 'UTS',
-          academicYear: '2026/2027',
-          academicTerm: 'Ganjil',
-          courseId: 'crs-mkb1075123',
-          courseCode: 'MKB1075123',
-          courseName: 'Sistem Operasi',
-          curriculumYear: 2026,
-          semester: 5,
-          kbkId: 'kbk-komputer',
-          sectionName: 'A',
-          studentCount: 32,
-          examDate: '2026-10-14',
-          examSessionId: 'ex-ses-2',
-          roomIds: ['rm-101'],
-          supervisorLecturerIds: ['lec-8'],
-          lecturerIds: ['lec-6'],
-          durationMinutes: 90,
-          status: 'scheduled',
-        },
-      ];
-      setCached(key, initialUtsOfferings, 0);
-      return initialUtsOfferings;
-    }
+    const rawList = getCached<ExamOffering[]>(key, []);
+    const lectureOfferings = this.getCourseOfferings();
+    const lecOffMap = new Map<string, CourseOffering>();
+    lectureOfferings.forEach(l => {
+      lecOffMap.set(l.id, l);
+      lecOffMap.set(`${l.courseId}_${l.section || l.sectionName || 'A'}`, l);
+    });
 
-    return getCached<ExamOffering[]>(key, []);
+    // Auto-align supervisor1Id with Dosen Pengampu
+    return rawList.map(off => {
+      const source = off.sourceCourseOfferingId ? lecOffMap.get(off.sourceCourseOfferingId) : lecOffMap.get(`${off.courseId}_${off.sectionName || 'A'}`);
+      const lecIds = (source?.lecturerIds && source.lecturerIds.length > 0)
+        ? source.lecturerIds
+        : (source?.lecturerId ? [source.lecturerId] : (off.lecturerIds || []));
+      
+      const supervisor1Id = lecIds.length > 0 ? lecIds[0] : (off.supervisor1Id || null);
+      const supervisor2Id = off.supervisor2Id || (off.supervisorLecturerIds?.[1] && off.supervisorLecturerIds[1] !== supervisor1Id ? off.supervisorLecturerIds[1] : null);
+      
+      const supervisorLecturerIds: string[] = [];
+      if (supervisor1Id) supervisorLecturerIds.push(supervisor1Id);
+      if (supervisor2Id && supervisor2Id !== supervisor1Id) supervisorLecturerIds.push(supervisor2Id);
+
+      return {
+        ...off,
+        lecturerIds: lecIds,
+        supervisor1Id,
+        supervisor2Id,
+        supervisorLecturerIds,
+        durationMinutes: off.durationMinutes || 100,
+      };
+    });
   }
 
   public static saveExamOfferings(
@@ -2571,6 +2704,155 @@ export class StorageService {
   ): void {
     const key = this.getExamKey(STORAGE_KEYS.EXAM_OFFERINGS, examType, academicYear, academicTerm);
     setCached(key, offerings, 0);
+  }
+
+  /**
+   * Generates or synchronizes Exam Offerings directly from active Lecture Schedule CourseOfferings.
+   * Preserves already assigned date, session, room, and supervisors unless forceReset is requested.
+   */
+  public static generateOrSyncExamOfferingsFromLectures(
+    examType: ExamType,
+    academicYear: string = '2026/2027',
+    academicTerm: AcademicTerm = 'Ganjil',
+    preserveExistingAssignments: boolean = true
+  ): { offerings: ExamOffering[]; addedCount: number; updatedCount: number } {
+    const lectureOfferings = this.getCourseOfferings();
+    const currentExamOfferings = this.getExamOfferings(examType, academicYear, academicTerm);
+
+    const existingMap = new Map<string, ExamOffering>();
+    currentExamOfferings.forEach(e => {
+      if (e.sourceCourseOfferingId) {
+        existingMap.set(e.sourceCourseOfferingId, e);
+      }
+      existingMap.set(`${e.courseId}_${e.sectionName || 'A'}`, e);
+    });
+
+    let addedCount = 0;
+    let updatedCount = 0;
+
+    const result: ExamOffering[] = lectureOfferings.map(lecOff => {
+      const matchKey = lecOff.id;
+      const fallbackKey = `${lecOff.courseId}_${lecOff.section || lecOff.sectionName || 'A'}`;
+      const existing = existingMap.get(matchKey) || existingMap.get(fallbackKey);
+
+      // 1. Pengawas 1 Otomatis dari Dosen Pengampu
+      const lecIds = (lecOff.lecturerIds && lecOff.lecturerIds.length > 0)
+        ? lecOff.lecturerIds
+        : (lecOff.lecturerId ? [lecOff.lecturerId] : (existing?.lecturerIds || []));
+      const supervisor1Id = lecIds.length > 0 ? lecIds[0] : null;
+
+      // 2. Pengawas 2 Manual dari Admin
+      const supervisor2Id = existing?.supervisor2Id || (existing?.supervisorLecturerIds?.[1] && existing.supervisorLecturerIds[1] !== supervisor1Id ? existing.supervisorLecturerIds[1] : null);
+
+      const supervisorLecturerIds: string[] = [];
+      if (supervisor1Id) supervisorLecturerIds.push(supervisor1Id);
+      if (supervisor2Id && supervisor2Id !== supervisor1Id) supervisorLecturerIds.push(supervisor2Id);
+
+      if (existing) {
+        updatedCount++;
+        return {
+          ...existing,
+          sourceCourseOfferingId: lecOff.id,
+          examType,
+          academicYear,
+          academicTerm,
+          courseId: lecOff.courseId,
+          courseCode: lecOff.courseCode || existing.courseCode,
+          courseName: lecOff.courseName || existing.courseName,
+          curriculumYear: lecOff.curriculumYear || existing.curriculumYear || 2026,
+          semester: lecOff.semester || existing.semester || 1,
+          kbkId: lecOff.kbkId || existing.kbkId,
+          sectionName: lecOff.section || lecOff.sectionName || existing.sectionName || 'A',
+          studentCount: lecOff.studentCount || lecOff.expectedEnrollment || existing.studentCount || 40,
+          lecturerIds: lecIds,
+          supervisor1Id,
+          supervisor2Id,
+          supervisorLecturerIds,
+          // Keep assigned exam slot & room if preserveExistingAssignments is true
+          examDate: preserveExistingAssignments ? existing.examDate : undefined,
+          examSessionId: preserveExistingAssignments ? existing.examSessionId : undefined,
+          roomIds: preserveExistingAssignments ? (existing.roomIds || []) : [],
+          durationMinutes: 100,
+          status: preserveExistingAssignments ? existing.status : 'draft',
+        };
+      }
+
+      addedCount++;
+      return {
+        id: `ex-${examType.toLowerCase()}-${lecOff.id}`,
+        sourceCourseOfferingId: lecOff.id,
+        examType,
+        academicYear,
+        academicTerm,
+        courseId: lecOff.courseId,
+        courseCode: lecOff.courseCode || '',
+        courseName: lecOff.courseName || '',
+        curriculumYear: lecOff.curriculumYear || 2026,
+        semester: lecOff.semester || 1,
+        kbkId: lecOff.kbkId || undefined,
+        sectionName: lecOff.section || lecOff.sectionName || 'A',
+        studentCount: lecOff.studentCount || lecOff.expectedEnrollment || 40,
+        lecturerIds: lecIds,
+        supervisor1Id,
+        supervisor2Id: null,
+        supervisorLecturerIds,
+        roomIds: [],
+        durationMinutes: 100,
+        status: 'draft',
+      };
+    });
+
+    this.saveExamOfferings(result, examType, academicYear, academicTerm);
+    return { offerings: result, addedCount, updatedCount };
+  }
+
+  /**
+   * Checks if the source lecture schedule has changed since exam offerings were generated.
+   */
+  public static checkExamSyncStatus(
+    examType: ExamType,
+    academicYear: string = '2026/2027',
+    academicTerm: AcademicTerm = 'Ganjil'
+  ): { hasChanged: boolean; lectureOfferingsCount: number; examOfferingsCount: number; message: string } {
+    const lectureOfferings = this.getCourseOfferings();
+    const examOfferings = this.getExamOfferings(examType, academicYear, academicTerm);
+
+    if (examOfferings.length === 0) {
+      return {
+        hasChanged: lectureOfferings.length > 0,
+        lectureOfferingsCount: lectureOfferings.length,
+        examOfferingsCount: 0,
+        message: 'Jadwal ujian belum dibuat dari jadwal perkuliahan.',
+      };
+    }
+
+    if (lectureOfferings.length !== examOfferings.length) {
+      return {
+        hasChanged: true,
+        lectureOfferingsCount: lectureOfferings.length,
+        examOfferingsCount: examOfferings.length,
+        message: `Jadwal perkuliahan sumber memiliki ${lectureOfferings.length} kelas mata kuliah, sedangkan draft ujian memiliki ${examOfferings.length} kelas.`,
+      };
+    }
+
+    const examSourceIds = new Set(examOfferings.map(e => e.sourceCourseOfferingId).filter(Boolean));
+    const missingInExam = lectureOfferings.some(l => !examSourceIds.has(l.id));
+
+    if (missingInExam) {
+      return {
+        hasChanged: true,
+        lectureOfferingsCount: lectureOfferings.length,
+        examOfferingsCount: examOfferings.length,
+        message: 'Terdapat perubahan kelas atau mata kuliah pada jadwal perkuliahan sumber.',
+      };
+    }
+
+    return {
+      hasChanged: false,
+      lectureOfferingsCount: lectureOfferings.length,
+      examOfferingsCount: examOfferings.length,
+      message: 'Draft jadwal ujian sinkron dengan jadwal perkuliahan.',
+    };
   }
 
   public static getExamPublishStatus(
@@ -2617,89 +2899,7 @@ export class StorageService {
     academicTerm: AcademicTerm = 'Ganjil'
   ): ExamVersion[] {
     const key = this.getExamKey(STORAGE_KEYS.EXAM_VERSIONS, examType, academicYear, academicTerm);
-    const existing = getCached<ExamVersion[]>(key, []);
-    if (existing.length > 0) return existing;
-
-    // Seed default versions per requirement #1 & #23
-    const currentOfferings = this.getExamOfferings(examType, academicYear, academicTerm);
-    const scheduledCount = currentOfferings.filter((o) => o.examDate && o.examSessionId && o.roomIds.length > 0).length;
-    const totalStudents = currentOfferings.reduce((sum, o) => sum + (o.studentCount || 0), 0);
-
-    let seeded: ExamVersion[] = [];
-    if (examType === 'UTS') {
-      seeded = [
-        {
-          id: `ex-ver-uts-2`,
-          examType: 'UTS',
-          academicYear,
-          academicTerm,
-          versionName: 'Versi 2',
-          versionNumber: 2,
-          status: 'Diterbitkan',
-          createdAt: new Date().toISOString(),
-          createdBy: 'Administrator',
-          publishedAt: new Date().toISOString(),
-          publishedBy: 'Administrator',
-          offerings: JSON.parse(JSON.stringify(currentOfferings)),
-          summary: {
-            totalExams: currentOfferings.length,
-            scheduledExams: scheduledCount,
-            totalStudents,
-            conflictCount: 0,
-          },
-          notes: 'Jadwal UTS resmi diterbitkan tanpa bentrok ruangan dan pengawas.',
-        },
-        {
-          id: `ex-ver-uts-1`,
-          examType: 'UTS',
-          academicYear,
-          academicTerm,
-          versionName: 'Versi 1',
-          versionNumber: 1,
-          status: 'Digantikan',
-          createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-          createdBy: 'Administrator',
-          publishedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-          publishedBy: 'Administrator',
-          offerings: JSON.parse(JSON.stringify(currentOfferings)),
-          summary: {
-            totalExams: currentOfferings.length,
-            scheduledExams: scheduledCount,
-            totalStudents,
-            conflictCount: 2,
-          },
-          notes: 'Draf alokasi awal sesi ujian tengah semester.',
-        },
-      ];
-    } else {
-      // UAS
-      seeded = [
-        {
-          id: `ex-ver-uas-1`,
-          examType: 'UAS',
-          academicYear,
-          academicTerm,
-          versionName: 'Versi 1',
-          versionNumber: 1,
-          status: 'Diterbitkan',
-          createdAt: new Date().toISOString(),
-          createdBy: 'Administrator',
-          publishedAt: new Date().toISOString(),
-          publishedBy: 'Administrator',
-          offerings: JSON.parse(JSON.stringify(currentOfferings)),
-          summary: {
-            totalExams: currentOfferings.length,
-            scheduledExams: scheduledCount,
-            totalStudents,
-            conflictCount: 0,
-          },
-          notes: 'Jadwal UAS resmi diterbitkan semester ganjil.',
-        },
-      ];
-    }
-
-    setCached(key, seeded, 0);
-    return seeded;
+    return getCached<ExamVersion[]>(key, []);
   }
 
   public static saveExamVersions(
@@ -2824,5 +3024,75 @@ export class StorageService {
     const current = getCached<ExamChangeLog[]>(STORAGE_KEYS.EXAM_CHANGE_LOGS, []);
     const updated = [newLog, ...current].slice(0, 300); // Keep last 300 logs
     setCached(STORAGE_KEYS.EXAM_CHANGE_LOGS, updated, 0);
+  }
+
+  // ==========================================
+  // MASTER DOSEN PENGAMPU DATA LAYER
+  // ==========================================
+  public static getMasterLecturerAssignments(): MasterLecturerAssignment[] {
+    const raw = getCached<MasterLecturerAssignment[] | null>(STORAGE_KEYS.MASTER_LECTURERS, null);
+    if (raw !== null && Array.isArray(raw) && raw.length === 392 && raw[0]?.raw_course_name === 'Agama Islam - A') {
+      return raw;
+    }
+    const defaults = MasterLecturerService.getAll();
+    setCached(STORAGE_KEYS.MASTER_LECTURERS, defaults, 0);
+    return defaults;
+  }
+
+  public static saveMasterLecturerAssignments(data: MasterLecturerAssignment[], user?: CurrentUser): void {
+    if (user) this.assertAdmin(user);
+    setCached(STORAGE_KEYS.MASTER_LECTURERS, data, 0);
+    MasterLecturerService.save(data);
+  }
+
+  public static clearMasterLecturerAssignments(user?: CurrentUser): void {
+    this.assertAdmin(user);
+    const empty: MasterLecturerAssignment[] = [];
+    setCached(STORAGE_KEYS.MASTER_LECTURERS, empty, 0);
+    MasterLecturerService.clearAll();
+  }
+
+  public static deleteMasterLecturerAssignment(sourceRowId: string, user?: CurrentUser): void {
+    this.assertAdmin(user);
+    const current = this.getMasterLecturerAssignments();
+    const filtered = current.filter((item) => item.source_row_id !== sourceRowId);
+    this.saveMasterLecturerAssignments(filtered, user);
+  }
+
+  public static saveManualMasterLecturerAssignments(
+    newRows: MasterLecturerAssignment[],
+    replacedSourceRowIds: string[] = [],
+    user?: CurrentUser
+  ): void {
+    this.assertAdmin(user);
+    const current = this.getMasterLecturerAssignments();
+    const replacedSet = new Set(replacedSourceRowIds);
+    const filtered = current.filter((item) => !replacedSet.has(item.source_row_id));
+    const combined = [...filtered, ...newRows];
+    this.saveMasterLecturerAssignments(combined, user);
+  }
+
+  public static resetMasterLecturerAssignments(user?: CurrentUser): MasterLecturerAssignment[] {
+    this.assertAdmin(user);
+    const defaults = MasterLecturerService.resetToDefault();
+    setCached(STORAGE_KEYS.MASTER_LECTURERS, defaults, 0);
+    return defaults;
+  }
+
+  public static getMasterLecturerValidationReport(): MasterLecturerValidationReport {
+    const data = this.getMasterLecturerAssignments();
+    return MasterLecturerService.getValidationReport(data);
+  }
+
+  public static getMasterLecturerImportBatches(): MasterLecturerImportBatch[] {
+    const raw = getCached<MasterLecturerImportBatch[] | null>(STORAGE_KEYS.MASTER_LECTURER_IMPORT_HISTORY, null);
+    if (raw && Array.isArray(raw)) {
+      return raw;
+    }
+    return [];
+  }
+
+  public static saveMasterLecturerImportBatches(batches: MasterLecturerImportBatch[]): void {
+    setCached(STORAGE_KEYS.MASTER_LECTURER_IMPORT_HISTORY, batches, 0);
   }
 }

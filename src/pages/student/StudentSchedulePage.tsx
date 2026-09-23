@@ -35,6 +35,7 @@ import { StorageService } from '../../services/storageService';
 import { DownloadScheduleButton } from '../../components/schedule/DownloadScheduleButton';
 import { ScheduleExportItem, ScheduleExportOptions } from '../../utils/scheduleExport';
 import { calculateCourseTiming } from '../../utils/sessionUtils';
+import { ScheduleBlockMatrix } from '../../components/schedule/ScheduleBlockMatrix';
 
 interface StudentSchedulePageProps {
   currentUser: CurrentUser;
@@ -73,7 +74,7 @@ export const StudentSchedulePage: React.FC<StudentSchedulePageProps> = ({
   const [selectedKbk, setSelectedKbk] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek | 'all'>('all');
-  const [viewLayout, setViewLayout] = useState<'table' | 'cards'>('table');
+  const [viewLayout, setViewLayout] = useState<'block' | 'table' | 'cards'>('block');
 
   // Master Data Lookups
   const courseMap = useMemo(() => new Map<string, Course>(courses.map((c) => [c.id, c])), [courses]);
@@ -87,12 +88,15 @@ export const StudentSchedulePage: React.FC<StudentSchedulePageProps> = ({
 
   // Retrieve active published schedule assignments
   const publishedLectureAssignments = useMemo(() => {
+    if (scheduleStatus !== 'published' || !StorageService.hasActiveSchedule()) {
+      return [];
+    }
     const activeVer = StorageService.getActiveScheduleVersion();
     if (activeVer && activeVer.scheduleAssignments && activeVer.scheduleAssignments.length > 0) {
       return activeVer.scheduleAssignments;
     }
     return currentSchedule || [];
-  }, [currentSchedule]);
+  }, [currentSchedule, scheduleStatus]);
 
   // Retrieve active published exam offerings
   const examOfferings = useMemo(() => {
@@ -512,9 +516,21 @@ export const StudentSchedulePage: React.FC<StudentSchedulePageProps> = ({
               <div className="flex items-center gap-1 h-[34px] px-1 bg-slate-100 rounded-lg">
                 <button
                   type="button"
+                  onClick={() => setViewLayout('block')}
+                  className={`flex-1 py-1 px-2 text-xs font-semibold rounded text-center transition-colors flex items-center justify-center gap-1 cursor-pointer ${
+                    viewLayout === 'block' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <span>Matriks Blok</span>
+                  <span className="text-[9px] px-1 py-0.2 rounded bg-indigo-100 text-indigo-800 font-extrabold">
+                    Utama
+                  </span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setViewLayout('table')}
-                  className={`flex-1 py-1 text-xs font-semibold rounded text-center transition-colors ${
-                    viewLayout === 'table' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  className={`flex-1 py-1 px-2 text-xs font-semibold rounded text-center transition-colors cursor-pointer ${
+                    viewLayout === 'table' ? 'bg-white text-slate-800 font-bold shadow-xs' : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
                   Tabel Data
@@ -522,8 +538,8 @@ export const StudentSchedulePage: React.FC<StudentSchedulePageProps> = ({
                 <button
                   type="button"
                   onClick={() => setViewLayout('cards')}
-                  className={`flex-1 py-1 text-xs font-semibold rounded text-center transition-colors ${
-                    viewLayout === 'cards' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  className={`flex-1 py-1 px-2 text-xs font-semibold rounded text-center transition-colors cursor-pointer ${
+                    viewLayout === 'cards' ? 'bg-white text-slate-800 font-bold shadow-xs' : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
                   Kartu Agenda
@@ -569,6 +585,19 @@ export const StudentSchedulePage: React.FC<StudentSchedulePageProps> = ({
                 Silakan ubah filter semester, KBK, hari, atau kata kunci pencarian Anda.
               </p>
             </div>
+          ) : viewLayout === 'block' ? (
+            <ScheduleBlockMatrix
+              assignments={filteredLectureAssignments}
+              courses={courses}
+              lecturers={lecturers}
+              classes={classes}
+              rooms={rooms}
+              timeslots={timeslots}
+              userRole="student"
+              readOnly={true}
+              hideFilterToolbar={true}
+              academicYear={academicYear}
+            />
           ) : viewLayout === 'table' ? (
             <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
               <div className="overflow-x-auto">

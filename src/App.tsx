@@ -3,9 +3,11 @@ import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { useToast } from './components/ui/Toast';
 import { StorageService } from './services/storageService';
+import { MasterLecturerService } from './services/masterLecturerService';
 import { AccessDenied } from './components/ui/AccessDenied';
 import { PageSkeleton } from './components/ui/PageSkeleton';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
+import { computeScheduleValidation } from './utils/scheduleValidation';
 
 // Resilient Lazy Import Helper with Retry Mechanism
 function lazyWithRetry<T extends React.ComponentType<any> = React.ComponentType<any>>(
@@ -39,6 +41,7 @@ function lazyWithRetry<T extends React.ComponentType<any> = React.ComponentType<
 }
 
 // Pages - Admin & Shared (Lazy Loaded for Fast Startup)
+const MasterLecturerManagement = lazyWithRetry(() => import('./components/master/MasterLecturerManagement').then(m => ({ default: m.MasterLecturerManagement })), 'MasterLecturerManagement');
 const UnifiedSchedulingPage = lazyWithRetry(() => import('./pages/UnifiedSchedulingPage'), 'UnifiedSchedulingPage');
 const DashboardPage = lazyWithRetry(() => import('./pages/DashboardPage'), 'DashboardPage');
 const CoursesPage = lazyWithRetry(() => import('./pages/CoursesPage'), 'CoursesPage');
@@ -64,6 +67,7 @@ const StudentSchedulePage = lazyWithRetry(() => import('./pages/student/StudentS
 
 // Pages - Published Schedule Portal (Separated Lecture & Exam with Versioning & Download)
 const PublishedSchedulePage = lazyWithRetry(() => import('./pages/PublishedSchedulePage'), 'PublishedSchedulePage');
+const SchedulePage = lazyWithRetry(() => import('./pages/SchedulePage'), 'SchedulePage');
 
 // Pages - History & Snapshots (Lazy Loaded)
 const ScheduleHistoryPage = lazyWithRetry(() => import('./pages/ScheduleHistoryPage'), 'ScheduleHistoryPage');
@@ -127,7 +131,11 @@ export default function App() {
   const [offerings, setOfferings] = useState<CourseOffering[]>([]);
   const [curriculumPackages, setCurriculumPackages] = useState<CurriculumPackage[]>([]);
 
-  const [currentSchedule, setCurrentSchedule] = useState<ScheduleAssignment[] | null>(null);
+  const [isScheduleHydrated, setIsScheduleHydrated] = useState<boolean>(false);
+  const [currentSchedule, setCurrentSchedule] = useState<ScheduleAssignment[] | null>(() => {
+    if (!StorageService.hasActiveSchedule()) return null;
+    return StorageService.getCurrentSchedule();
+  });
   const [initialSchedule, setInitialSchedule] = useState<ScheduleAssignment[] | null>(null);
   const [parameters, setParameters] = useState<SAParameters>(StorageService.getParameters());
   const [weights, setWeights] = useState<ConstraintWeights>(StorageService.getWeights());
@@ -149,10 +157,10 @@ export default function App() {
     let loadedOfferings = StorageService.getCourseOfferings();
     const loadedPackages = StorageService.getCurriculumPackages();
 
-    // If offerings empty, auto generate from packages
-    if (!loadedOfferings || loadedOfferings.length === 0) {
-      const genReport = CourseOfferingGeneratorService.generateOfferings({ academicTerm: 'ganjil' });
-      loadedOfferings = genReport.generatedOfferings;
+    // Immediately synchronize active CourseOfferings with Master Lecturer Assignments if offerings exist
+    if (loadedOfferings && loadedOfferings.length > 0) {
+      const syncRes = MasterLecturerService.autoAssignLecturersToOfferings(loadedOfferings, 'GANJIL');
+      loadedOfferings = syncRes.updatedOfferings;
       StorageService.saveCourseOfferings(loadedOfferings);
     }
 
@@ -164,39 +172,59 @@ export default function App() {
     setOfferings(loadedOfferings);
     setCurriculumPackages(loadedPackages);
 
-    const savedCurrent = StorageService.getCurrentSchedule();
-    const savedInitial = StorageService.getInitialSchedule();
+    if (StorageService.hasActiveSchedule()) {
+      const savedCurrent = StorageService.getCurrentSchedule();
+      setCurrentSchedule(savedCurrent && savedCurrent.length > 0 ? savedCurrent : null);
+      const savedInitial = StorageService.getInitialSchedule();
+      if (savedInitial) setInitialSchedule(savedInitial);
+      const savedOpt = StorageService.getActiveOptimizationResult();
+      if (savedOpt) setActiveOptimizationResult(savedOpt);
+    } else {
+      setCurrentSchedule(null);
+      setInitialSchedule(null);
+      setActiveOptimizationResult(null);
+    }
+
     const savedHistory = StorageService.getOptimizationHistory();
     const savedLogs = StorageService.getScheduleChangeRecords();
 
-    if (savedCurrent) setCurrentSchedule(savedCurrent);
-    if (savedInitial) setInitialSchedule(savedInitial);
-    if (savedHistory) {
-      setOptimizationHistory(savedHistory);
-      if (savedHistory.length > 0) {
-        setActiveOptimizationResult(savedHistory[savedHistory.length - 1]);
-      }
-    }
+    if (savedHistory) setOptimizationHistory(savedHistory);
     if (savedLogs) setChangeLogs(savedLogs);
+
+    setIsScheduleHydrated(true);
   }, []);
 
-  // Compute live conflicts for active schedule
-  const activeConflicts: ConflictItem[] = React.useMemo(() => {
-    if (!currentSchedule || currentSchedule.length === 0) return [];
-    return detectConflicts(
+  // Listen to active-schedule-deleted event
+  useEffect(() => {
+    const handleActiveScheduleDeleted = () => {
+      setCurrentSchedule(null);
+      setInitialSchedule(null);
+      setActiveOptimizationResult(null);
+      setScheduleStatus('draft');
+      setOfferings([]);
+    };
+    window.addEventListener('active-schedule-deleted', handleActiveScheduleDeleted);
+    return () => window.removeEventListener('active-schedule-deleted', handleActiveScheduleDeleted);
+  }, []);
+
+  // Single Source of Truth for Schedule Validation
+  const scheduleValidation = React.useMemo(() => {
+    return computeScheduleValidation(
       currentSchedule,
       courses,
       lecturers,
-      classes,
       rooms,
       timeslots,
       weights,
-      [],
-      [],
       curriculumPackages,
-      offerings
-    ).items;
-  }, [currentSchedule, courses, lecturers, classes, rooms, timeslots, weights, curriculumPackages, offerings]);
+      offerings,
+      classes
+    );
+  }, [currentSchedule, courses, lecturers, rooms, timeslots, weights, curriculumPackages, offerings, classes]);
+
+  const activeConflicts: ConflictItem[] = React.useMemo(() => {
+    return scheduleValidation.hardConflicts.concat(scheduleValidation.warnings);
+  }, [scheduleValidation]);
 
   // Role Switcher Handler
   const handleSwitchRole = (role: UserRole, targetId?: string) => {
@@ -217,16 +245,28 @@ export default function App() {
 
   const handlePublishSchedule = () => {
     if (scheduleStatus === 'published') {
-      StorageService.setScheduleStatus('draft');
+      // BATALKAN JADWAL TERBIT:
+      // Requirement: Batalkan jadwal terbit = jadwal aktif kembali kosong, bukan generate jadwal default/random.
+      StorageService.deleteActiveSchedule(currentUser, false);
       setScheduleStatus('draft');
-      showToast('info', 'Status Jadwal Diubah ke Draft', 'Jadwal kini dalam tahap revisi internal.');
+      setCurrentSchedule(null);
+      setInitialSchedule(null);
+      setActiveOptimizationResult(null);
+      setOfferings([]);
+
+      showToast('info', 'Publikasi Jadwal Dibatalkan', 'Jadwal resmi telah dibatalkan dan jadwal aktif kembali kosong.');
     } else {
+      if (!currentSchedule || currentSchedule.length === 0) {
+        showToast('error', 'Gagal Publikasi', 'Tidak ada jadwal aktif untuk dipublikasikan.');
+        return;
+      }
       const activeVer = StorageService.getActiveScheduleVersion();
       if (activeVer) {
         StorageService.publishScheduleVersion(activeVer.id, currentUser.name || 'Administrator');
-      } else if (currentSchedule && currentSchedule.length > 0) {
-        StorageService.createScheduleVersion('Versi 3', currentSchedule, 'Diterbitkan', currentUser.name || 'Administrator');
+      } else {
+        StorageService.createScheduleVersion(`Versi Resmi ${academicYear}`, currentSchedule, 'Diterbitkan', currentUser.name || 'Administrator');
       }
+      StorageService.saveCurrentSchedule(currentSchedule);
       StorageService.setScheduleStatus('published');
       setScheduleStatus('published');
       showToast('success', 'Jadwal Resmi Dipublikasikan', 'Jadwal perkuliahan telah diterbitkan untuk dosen dan mahasiswa.');
@@ -712,7 +752,10 @@ export default function App() {
     'lecturer-dashboard': 'Portal Dosen Teknik Elektro',
     'lecturer-schedule': 'Jadwal Mengajar Saya',
     'lecturer-availability': 'Ketersediaan & Preferensi Dosen',
-    scheduling: 'Penyusunan & Optimasi Jadwal Terpadu',
+    'scheduling': 'Penyusunan & Optimasi Jadwal Terpadu',
+    'scheduling-new': 'Penyusunan Jadwal Perkuliahan Baru',
+    'scheduling-template': 'Penyusunan Jadwal (Template Paket)',
+    'scheduling-custom': 'Penyusunan Jadwal (Custom Manual)',
     optimization: 'Optimasi Jadwal Simulated Annealing',
     schedule: currentUser.role === 'student' ? 'Jadwal Saya' : 'Hasil Jadwal Perkuliahan & Rekomendasi',
     conflicts: 'Analisis & Audit Konflik Jadwal',
@@ -730,6 +773,17 @@ export default function App() {
     'report-lecturer-load': 'Rekap Beban Mengajar Dosen',
     'report-room-usage': 'Rekap Penggunaan Ruangan',
   };
+
+  if (!isScheduleHydrated) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="text-center space-y-3">
+          <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-xs font-semibold text-slate-600 animate-pulse">Memuat dan merestorasi jadwal aktif...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[100dvh] w-full bg-slate-50 flex flex-col md:flex-row text-slate-900 font-sans antialiased">
@@ -771,7 +825,7 @@ export default function App() {
           <ErrorBoundary key={activeView} onReset={() => window.location.reload()}>
             <Suspense fallback={<PageSkeleton />}>
               {/* UNIFIED SCHEDULING WORKFLOW */}
-              {activeView === 'scheduling' && (
+              {(activeView === 'scheduling' || activeView === 'scheduling-new' || activeView === 'scheduling-template' || activeView === 'scheduling-custom') && (
                 currentUser.role === 'admin' ? (
                   <UnifiedSchedulingPage
                     courses={courses}
@@ -797,8 +851,15 @@ export default function App() {
                     onStopOptimization={handleStopOptimization}
                     onChangeParameters={handleSaveParameters}
                     onSaveSchedule={(sch) => {
-                      setCurrentSchedule(sch);
-                      StorageService.saveCurrentSchedule(sch);
+                      const validSchedule = sch && sch.length > 0 ? sch : null;
+                      setCurrentSchedule(validSchedule);
+                      StorageService.saveCurrentSchedule(validSchedule);
+                      if (!validSchedule) {
+                        setActiveOptimizationResult(null);
+                        setInitialSchedule(null);
+                        setScheduleStatus('draft');
+                        StorageService.setScheduleStatus('draft');
+                      }
                     }}
                     onPublishSchedule={handlePublishSchedule}
                     onUpdateOfferings={(offs) => {
@@ -808,6 +869,16 @@ export default function App() {
                     onManualMoveAssignment={handleManualMoveAssignment}
                     onSwapAssignments={handleSwapAssignments}
                     onUpdateAssignmentLecturers={handleUpdateAssignmentLecturers}
+                    onNavigate={setActiveView}
+                    initialMode={
+                      activeView === 'scheduling-template'
+                        ? 'template'
+                        : activeView === 'scheduling-custom'
+                        ? 'custom'
+                        : activeView === 'scheduling-new'
+                        ? 'new'
+                        : null
+                    }
                   />
                 ) : (
                   <AccessDenied
@@ -824,7 +895,7 @@ export default function App() {
                   currentUser={currentUser}
                   lecturer={activeLecturerEntity}
                   courses={courses}
-                  schedule={currentSchedule || []}
+                  schedule={scheduleStatus === 'published' ? (currentSchedule || []) : []}
                   timeslots={timeslots}
                   rooms={rooms}
                   classes={classes}
@@ -837,7 +908,7 @@ export default function App() {
                 <LecturerSchedulePage
                   lecturer={activeLecturerEntity}
                   courses={courses}
-                  schedule={currentSchedule || []}
+                  schedule={scheduleStatus === 'published' ? (currentSchedule || []) : []}
                   timeslots={timeslots}
                   rooms={rooms}
                   classes={classes}
@@ -865,6 +936,7 @@ export default function App() {
                     currentSchedule={currentSchedule}
                     initialSchedule={initialSchedule}
                     activeOptimizationResult={activeOptimizationResult}
+                    scheduleValidation={scheduleValidation}
                     offerings={offerings}
                     packages={curriculumPackages}
                     onNavigate={setActiveView}
@@ -952,7 +1024,7 @@ export default function App() {
                 currentUser.role === 'student' ? (
                   <StudentSchedulePage
                     currentUser={currentUser}
-                    currentSchedule={currentSchedule}
+                    currentSchedule={scheduleStatus === 'published' ? currentSchedule : null}
                     courses={courses}
                     lecturers={lecturers}
                     classes={classes}
@@ -962,7 +1034,7 @@ export default function App() {
                     academicYear={academicYear}
                   />
                 ) : (
-                  <PublishedSchedulePage
+                  <SchedulePage
                     currentUser={currentUser}
                     courses={courses}
                     lecturers={lecturers}
@@ -970,30 +1042,58 @@ export default function App() {
                     rooms={rooms}
                     timeslots={timeslots}
                     academicYear={academicYear}
+                    currentSchedule={currentSchedule}
+                    conflicts={activeConflicts}
+                    weights={weights}
                     onRefreshSchedule={() => {
                       const sch = StorageService.getCurrentSchedule();
                       if (sch) setCurrentSchedule(sch);
                     }}
+                    onSaveSchedule={(sch) => {
+                      setCurrentSchedule(sch);
+                      StorageService.saveCurrentSchedule(sch);
+                    }}
+                    onManualMoveAssignment={handleManualMoveAssignment}
+                    onSwapAssignments={handleSwapAssignments}
+                    onUpdateAssignmentLecturers={handleUpdateAssignmentLecturers}
+                    onPublishSchedule={() => handlePublishSchedule()}
+                    onNavigate={setActiveView}
+                    initialViewMode="matrix"
+                    onRunOptimization={handleRunOptimization}
+                    isOptimizing={isOptimizing}
                   />
                 )
               )}
 
-              {/* 3B. TIMETABLE MATRIX & MANUAL ADJUSTMENT */}
+              {/* 3B. TIMETABLE MATRIX & MANUAL ADJUSTMENT (UNIFIED ALIAS) */}
               {activeView === 'timetable' && (
-                <TimetablePage
-                  currentSchedule={currentSchedule}
+                <SchedulePage
+                  currentUser={currentUser}
                   courses={courses}
                   lecturers={lecturers}
                   classes={classes}
                   rooms={rooms}
                   timeslots={timeslots}
+                  academicYear={academicYear}
+                  currentSchedule={currentSchedule}
                   conflicts={activeConflicts}
                   weights={weights}
+                  onRefreshSchedule={() => {
+                    const sch = StorageService.getCurrentSchedule();
+                    if (sch) setCurrentSchedule(sch);
+                  }}
+                  onSaveSchedule={(sch) => {
+                    setCurrentSchedule(sch);
+                    StorageService.saveCurrentSchedule(sch);
+                  }}
                   onManualMoveAssignment={handleManualMoveAssignment}
                   onSwapAssignments={handleSwapAssignments}
-                  changeLogs={changeLogs}
-                  onClearLogs={handleClearLogs}
                   onUpdateAssignmentLecturers={handleUpdateAssignmentLecturers}
+                  onPublishSchedule={() => handlePublishSchedule()}
+                  onNavigate={setActiveView}
+                  initialViewMode="matrix"
+                  onRunOptimization={handleRunOptimization}
+                  isOptimizing={isOptimizing}
                 />
               )}
 
@@ -1031,6 +1131,12 @@ export default function App() {
 
               {activeView === 'curriculum' && (
                 <CurriculumStructurePage />
+              )}
+
+              {activeView === 'master-lecturers' && (
+                <MasterLecturerManagement
+                  onNotify={(type, title, message) => showToast(type, title, message)}
+                />
               )}
 
               {activeView === 'courses' && (

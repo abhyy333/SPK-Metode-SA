@@ -23,6 +23,7 @@ import { ExamSessionModal } from '../../components/exam/ExamSessionModal';
 import { ExamOfferingEditModal } from '../../components/exam/ExamOfferingEditModal';
 import { ExamHistoryModal } from '../../components/exam/ExamHistoryModal';
 import { ExamChangeLogModal } from '../../components/exam/ExamChangeLogModal';
+import { ExamBlockMatrix } from '../../components/exam/ExamBlockMatrix';
 import { useToast } from '../../components/ui/Toast';
 import {
   Calendar,
@@ -49,14 +50,25 @@ import {
   Download,
   ShieldAlert,
   Info,
+  RotateCcw,
+  RefreshCw,
+  Sliders,
+  Check,
+  Zap,
+  GraduationCap,
+  LayoutGrid,
+  List,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
+import { formatIndonesianDate, calculateExamTiming } from '../../utils/examUtils';
 
 export const ExamSchedulingPage: React.FC = () => {
   const { showToast } = useToast();
   const currentUser = StorageService.getCurrentUser();
   const isAdmin = currentUser.role === 'admin';
 
-  // Primary Academic & Exam Selectors (UTS vs UAS)
+  // Primary Selectors: UTS vs UAS
   const [examType, setExamType] = useState<ExamType>('UTS');
   const [academicYear, setAcademicYear] = useState<string>('2026/2027');
   const [academicTerm, setAcademicTerm] = useState<AcademicTerm>('Ganjil');
@@ -68,11 +80,25 @@ export const ExamSchedulingPage: React.FC = () => {
   const [sessions, setSessions] = useState<ExamSession[]>([]);
   const [examConfig, setExamConfig] = useState<ExamConfig>(StorageService.getExamConfig('UTS'));
 
-  // Exam Offerings State
+  // Exam Offerings State (Derived from Lecture Schedule CourseOfferings)
   const [offerings, setOfferings] = useState<ExamOffering[]>([]);
   const [publishStatus, setPublishStatus] = useState<{ isPublished: boolean; publishedAt?: string; publishedBy?: string }>({
     isPublished: false,
   });
+
+  // Sync state tracking with source lecture schedule
+  const [syncStatus, setSyncStatus] = useState<{
+    hasChanged: boolean;
+    lectureOfferingsCount: number;
+    examOfferingsCount: number;
+    message: string;
+  }>({
+    hasChanged: false,
+    lectureOfferingsCount: 0,
+    examOfferingsCount: 0,
+    message: '',
+  });
+  const [isSyncBannerDismissed, setIsSyncBannerDismissed] = useState(false);
 
   // Conflicts & Versioning
   const [conflicts, setConflicts] = useState<ExamConflictItem[]>([]);
@@ -85,37 +111,40 @@ export const ExamSchedulingPage: React.FC = () => {
   const [isChangeLogModalOpen, setIsChangeLogModalOpen] = useState(false);
   const [editingOffering, setEditingOffering] = useState<ExamOffering | null>(null);
 
-  // Active Tab in Unified Workflow
-  const [activeTab, setActiveTab] = useState<'selection' | 'allocation' | 'schedule' | 'publish'>('schedule');
+  // View Mode & Fullsize
+  const [viewMode, setViewMode] = useState<'matrix' | 'list'>('matrix');
+  const [showFilterBar, setShowFilterBar] = useState<boolean>(true);
 
-  // Course Selection & Sectioning Workspace
-  const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
-  const [courseStudentInputs, setCourseStudentInputs] = useState<Record<string, string>>({}); // EMPTY by default!
-  const [courseDurations, setCourseDurations] = useState<Record<string, number>>({});
-  const [searchCourseQuery, setSearchCourseQuery] = useState('');
+  // Filters & Search
   const [filterSemester, setFilterSemester] = useState<string>('all');
-  const [filterCurriculum, setFilterCurriculum] = useState<string>('all');
-
-  // Schedule View Filters
-  const [scheduleFilterDate, setScheduleFilterDate] = useState<string>('all');
-  const [scheduleFilterSemester, setScheduleFilterSemester] = useState<string>('all');
-  const [scheduleFilterRoom, setScheduleFilterRoom] = useState<string>('all');
-  const [scheduleFilterSearch, setScheduleFilterSearch] = useState<string>('');
+  const [filterDate, setFilterDate] = useState<string>('all');
+  const [filterRoom, setFilterRoom] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'complete' | 'incomplete_supervisor' | 'unscheduled' | 'conflict'>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Optimization State
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizationProgress, setOptimizationProgress] = useState<ExamOptimizationProgress | null>(null);
-  const stopOptimizationRef = useRef<{ current: boolean }>({ current: false });
+  const stopOptimizationRef = useRef<boolean>(false);
 
-  // Load all data on mount and whenever examType/academicYear/academicTerm changes
-  useEffect(() => {
+  // Load data on mount and whenever examType/academicYear/academicTerm changes
+  const loadAllData = () => {
     const loadedCourses = StorageService.getCourses();
     const loadedRooms = StorageService.getRooms();
     const loadedLecturers = StorageService.getLecturers();
     const loadedSessions = StorageService.getExamSessions();
     const loadedConfig = StorageService.getExamConfig(examType);
-    const loadedOfferings = StorageService.getExamOfferings(examType, academicYear, academicTerm);
-    const loadedStatus = StorageService.getExamPublishStatus(examType, academicYear, academicTerm);
+    let loadedOfferings = StorageService.getExamOfferings(examType, academicYear, academicTerm);
+
+    // Auto-bootstrap exam offerings from lecture schedule if empty
+    if (loadedOfferings.length === 0) {
+      const synced = StorageService.generateOrSyncExamOfferingsFromLectures(examType, academicYear, academicTerm, true);
+      if (synced.offerings.length > 0) {
+        loadedOfferings = synced.offerings;
+      }
+    }
+
+    const loadedPublish = StorageService.getExamPublishStatus(examType, academicYear, academicTerm);
     const loadedVersions = StorageService.getExamVersions(examType, academicYear, academicTerm);
     const loadedLogs = StorageService.getExamChangeLogs(examType);
 
@@ -125,1435 +154,1029 @@ export const ExamSchedulingPage: React.FC = () => {
     setSessions(loadedSessions);
     setExamConfig(loadedConfig);
     setOfferings(loadedOfferings);
-    setPublishStatus(loadedStatus);
+    setPublishStatus(loadedPublish);
     setVersions(loadedVersions);
     setChangeLogs(loadedLogs);
 
-    // Initial selected courses from existing offerings
-    const existingCourseIds = Array.from(new Set(loadedOfferings.map(o => o.courseId)));
-    setSelectedCourseIds(existingCourseIds);
+    // Run conflict detection
+    const detected = detectExamConflicts(loadedOfferings, loadedRooms, loadedSessions, loadedLecturers);
+    setConflicts(detected);
 
-    // Initial conflict detection
-    const currentConflicts = detectExamConflicts(loadedOfferings, loadedRooms, loadedSessions, loadedLecturers);
-    setConflicts(currentConflicts);
+    // Check sync status against active lecture schedule
+    checkSyncDiff(loadedOfferings);
+  };
+
+  useEffect(() => {
+    loadAllData();
   }, [examType, academicYear, academicTerm]);
 
-  // Recalculate conflicts when offerings change
-  useEffect(() => {
-    if (rooms.length > 0 && sessions.length > 0) {
-      const currentConflicts = detectExamConflicts(offerings, rooms, sessions, lecturers);
-      setConflicts(currentConflicts);
-    }
-  }, [offerings, rooms, sessions, lecturers]);
-
-  // Generate available dates based on config
+  // Dynamic available dates within exam period
   const availableDates = useMemo(() => {
-    const dates: string[] = [];
-    if (!examConfig.examStartDate || !examConfig.examEndDate) return dates;
-
-    const start = new Date(examConfig.examStartDate);
-    const end = new Date(examConfig.examEndDate);
-    const current = new Date(start);
-
-    while (current <= end) {
-      const dayOfWeek = current.getDay(); // 0 = Sunday, 6 = Saturday
-      if (!examConfig.excludeWeekends || (dayOfWeek !== 0 && dayOfWeek !== 6)) {
-        dates.push(current.toISOString().split('T')[0]);
-      }
-      current.setDate(current.getDate() + 1);
+    if (!examConfig.examStartDate || !examConfig.examEndDate) {
+      // Fallback default: 5 working days
+      return ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16'];
     }
-    return dates;
-  }, [examConfig.examStartDate, examConfig.examEndDate, examConfig.excludeWeekends]);
+    const dates: string[] = [];
+    try {
+      const start = new Date(examConfig.examStartDate);
+      const end = new Date(examConfig.examEndDate);
+      const cur = new Date(start);
+      while (cur <= end) {
+        const day = cur.getDay();
+        // Skip Sunday (0) and optionally Saturday (6) based on config
+        const includeSat = examConfig.activeDays?.includes('Sabtu');
+        if (day !== 0 && (day !== 6 || includeSat)) {
+          dates.push(cur.toISOString().split('T')[0]);
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+    } catch {
+      return ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16'];
+    }
+    return dates.length > 0 ? dates : ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16'];
+  }, [examConfig]);
 
-  // Handle Save Sessions
-  const handleSaveSessions = (newSessions: ExamSession[]) => {
-    StorageService.saveExamSessions(newSessions);
-    setSessions(newSessions);
-    StorageService.logExamChange({
+  // Check if lecture schedule has changed compared to current exam offerings
+  const checkSyncDiff = (currentExamOfferings: ExamOffering[]) => {
+    const lectureOfferings = StorageService.getCourseOfferings();
+    const lectureMap = new Map(lectureOfferings.map(l => [l.id, l]));
+    const examSourceIds = new Set(currentExamOfferings.map(e => e.sourceCourseOfferingId).filter(Boolean));
+
+    let added = 0;
+    lectureOfferings.forEach(l => {
+      if (!examSourceIds.has(l.id)) added++;
+    });
+
+    if (added > 0 || lectureOfferings.length !== currentExamOfferings.length) {
+      setSyncStatus({
+        hasChanged: true,
+        lectureOfferingsCount: lectureOfferings.length,
+        examOfferingsCount: currentExamOfferings.length,
+        message: `Terdapat ${added} kelas baru pada jadwal perkuliahan yang belum disinkronkan ke jadwal ujian.`,
+      });
+    } else {
+      setSyncStatus({
+        hasChanged: false,
+        lectureOfferingsCount: lectureOfferings.length,
+        examOfferingsCount: currentExamOfferings.length,
+        message: '',
+      });
+    }
+  };
+
+  // Synchronize exam offerings from lecture schedule
+  const handleSyncFromLectures = (forceReset: boolean = false) => {
+    const result = StorageService.generateOrSyncExamOfferingsFromLectures(
       examType,
       academicYear,
       academicTerm,
-      action: 'UPDATE_SESSIONS',
-      description: `Konfigurasi sesi ujian diperbarui (${newSessions.length} sesi).`,
-      changedBy: currentUser.name,
+      !forceReset
+    );
+    setOfferings(result.offerings);
+
+    // Re-detect conflicts
+    const detected = detectExamConflicts(result.offerings, rooms, sessions, lecturers);
+    setConflicts(detected);
+
+    setSyncStatus({
+      hasChanged: false,
+      lectureOfferingsCount: result.offerings.length,
+      examOfferingsCount: result.offerings.length,
+      message: '',
     });
-    showToast('success', 'Sesi Ujian Disimpan', 'Daftar sesi ujian telah diperbarui.');
-  };
-
-  // Handle Reset Default Sessions
-  const handleResetDefaultSessions = () => {
-    const defaultSessions = StorageService.resetDefaultExamSessions();
-    setSessions(defaultSessions);
-    showToast('info', 'Reset Sesi Ujian', 'Sesi ujian dikembalikan ke standar.');
-  };
-
-  // Toggle Course Selection for Exam
-  const handleToggleCourseSelect = (courseId: string) => {
-    if (!isAdmin) return;
-    if (selectedCourseIds.includes(courseId)) {
-      setSelectedCourseIds(prev => prev.filter(id => id !== courseId));
-    } else {
-      setSelectedCourseIds(prev => [...prev, courseId]);
-      // Default input MUST be EMPTY (not 0) as per Requirement 4
-      if (courseStudentInputs[courseId] === undefined) {
-        setCourseStudentInputs(prev => ({ ...prev, [courseId]: '' }));
-      }
-    }
-  };
-
-  // Quick Select Semester Package
-  const handleSelectSemesterPackage = (targetSemester: number) => {
-    if (!isAdmin) return;
-    const semesterCourses = courses.filter(c => c.semester === targetSemester && c.isActive);
-    const semCourseIds = semesterCourses.map(c => c.id);
-    setSelectedCourseIds(prev => Array.from(new Set([...prev, ...semCourseIds])));
-
-    // Initialize blank student inputs
-    setCourseStudentInputs(prev => {
-      const next = { ...prev };
-      semCourseIds.forEach(id => {
-        if (next[id] === undefined) next[id] = '';
-      });
-      return next;
-    });
+    setIsSyncBannerDismissed(true);
 
     showToast(
       'success',
-      `Paket Semester ${targetSemester} Dipilih`,
-      `${semCourseIds.length} mata kuliah berhasil ditambahkan ke daftar ujian.`
+      'Sinkronisasi Berhasil',
+      `Berhasil menyinkronkan ${result.offerings.length} kelas ujian dari jadwal perkuliahan (${result.addedCount} baru, ${result.updatedCount} diperbarui).`
     );
   };
 
-  // Generate / Split Offerings from Selected Courses
-  const handleGenerateOfferingsFromCourses = () => {
-    if (!isAdmin) return;
-    if (selectedCourseIds.length === 0) {
-      showToast('error', 'Pilih Mata Kuliah', 'Silakan pilih minimal satu mata kuliah.');
-      return;
-    }
+  // Simulated Annealing Optimization
+  const handleRunSAOptimization = async () => {
+    if (isOptimizing) return;
+    setIsOptimizing(true);
+    stopOptimizationRef.current = false;
 
-    const newOfferings: ExamOffering[] = [];
-    const maxSectionCap = examConfig.maxStudentsPerSection || 40;
+    showToast('info', 'Optimasi Dimulai', 'Menjalankan Simulated Annealing untuk alokasi waktu dan ruangan ujian...');
 
-    for (const courseId of selectedCourseIds) {
-      const course = courses.find(c => c.id === courseId);
-      if (!course) continue;
+    try {
+      const activeRooms = rooms.filter(r => r.isActive);
+      const activeSessions = sessions.filter(s => s.isActive);
 
-      const rawCount = courseStudentInputs[courseId];
-      const studentCount = parseInt(rawCount, 10);
-
-      if (isNaN(studentCount) || studentCount <= 0) {
-        showToast(
-          'error',
-          'Jumlah Peserta Wajib Diisi',
-          `Masukkan jumlah peserta untuk "${course.name}". Input tidak boleh kosong atau 0.`
-        );
+      if (availableDates.length === 0 || activeSessions.length === 0 || activeRooms.length === 0) {
+        showToast('error', 'Konfigurasi Belum Lengkap', 'Pastikan tanggal periode ujian, sesi aktif, dan ruangan tersedia.');
+        setIsOptimizing(false);
         return;
       }
 
-      const duration = courseDurations[courseId] || examConfig.defaultDurationMinutes;
-
-      // Section splitting calculation
-      // E.g. 127 students with max 40 -> 4 sections (32, 32, 32, 31)
-      const numSections = Math.max(1, Math.ceil(studentCount / maxSectionCap));
-      const basePerSection = Math.floor(studentCount / numSections);
-      const remainder = studentCount % numSections;
-
-      const sectionLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
-
-      for (let s = 0; s < numSections; s++) {
-        const countForThisSection = basePerSection + (s < remainder ? 1 : 0);
-        const sectionName = numSections > 1 ? sectionLetters[s] : 'A';
-
-        // Check if existing offering already exists to preserve manual slot if any
-        const existing = offerings.find(o => o.courseId === courseId && o.sectionName === sectionName);
-
-        newOfferings.push({
-          id: existing ? existing.id : `ex-off-${course.id}-${sectionName}-${Date.now()}`,
-          examType,
-          academicYear,
-          academicTerm,
-          courseId: course.id,
-          courseCode: course.code,
-          courseName: course.name,
-          curriculumYear: course.curriculumYear ? Number(course.curriculumYear) : 2026,
-          semester: course.semester,
-          kbkId: course.kbkIds?.[0],
-          sectionName,
-          studentCount: countForThisSection,
-          durationMinutes: duration,
-          examDate: existing?.examDate,
-          examSessionId: existing?.examSessionId,
-          roomIds: existing?.roomIds || [],
-          supervisorLecturerIds: existing?.supervisorLecturerIds || [],
-          lecturerIds: course.lecturerId ? [course.lecturerId] : [],
-          status: existing?.status || 'draft',
-        });
-      }
-    }
-
-    setOfferings(newOfferings);
-    StorageService.saveExamOfferings(newOfferings, examType, academicYear, academicTerm);
-    StorageService.logExamChange({
-      examType,
-      academicYear,
-      academicTerm,
-      action: 'GENERATE_OFFERINGS',
-      description: `Generate ${newOfferings.length} exam offerings dari ${selectedCourseIds.length} mata kuliah.`,
-      changedBy: currentUser.name,
-    });
-
-    showToast(
-      'success',
-      'Exam Offerings Dibuat',
-      `${newOfferings.length} seksi ujian berhasil dibuat siap dijadwalkan.`
-    );
-    setActiveTab('allocation');
-  };
-
-  // Run Initial Schedule Generation (Greedy Heuristic)
-  const handleGenerateInitialSchedule = () => {
-    if (!isAdmin) return;
-    if (offerings.length === 0) {
-      showToast('warning', 'Tidak Ada Ujian', 'Buat exam offerings terlebih dahulu.');
-      return;
-    }
-    if (availableDates.length === 0) {
-      showToast('error', 'Rentang Tanggal Kosong', 'Tentukan rentang tanggal ujian pada pengaturan.');
-      return;
-    }
-
-    const scheduled = generateInitialExamSchedule(offerings, rooms, sessions, availableDates);
-    setOfferings(scheduled);
-    StorageService.saveExamOfferings(scheduled, examType, academicYear, academicTerm);
-
-    StorageService.logExamChange({
-      examType,
-      academicYear,
-      academicTerm,
-      action: 'INITIAL_HEURISTIC_SCHEDULE',
-      description: `Generate jadwal awal heuristik untuk ${scheduled.length} ujian.`,
-      changedBy: currentUser.name,
-    });
-
-    showToast(
-      'success',
-      'Jadwal Awal Berhasil Dibuat',
-      'Ujian telah diplot secara otomatis berdasarkan kapasitas ruangan dan sesi.'
-    );
-    setActiveTab('schedule');
-  };
-
-  // Run Simulated Annealing Optimizer
-  const handleRunSAOptimization = async () => {
-    if (!isAdmin) return;
-    if (offerings.length === 0) {
-      showToast('warning', 'Belum Ada Ujian', 'Tambahkan mata kuliah ujian terlebih dahulu.');
-      return;
-    }
-
-    setIsOptimizing(true);
-    stopOptimizationRef.current = { current: false };
-
-    try {
+      const initial = generateInitialExamSchedule(offerings, activeRooms, activeSessions, availableDates);
       const result = await optimizeExamScheduleSA(
-        offerings,
+        initial,
         rooms,
         sessions,
         lecturers,
         {
           availableDates,
-          maxIterations: 1000,
-          initialTemperature: 2000,
-          coolingRate: 0.994,
-          keepParallelSectionsTogether: true,
+          maxIterations: 600,
+          initialTemperature: 1200,
         },
         progress => {
           setOptimizationProgress(progress);
         },
-        stopOptimizationRef.current
+        stopOptimizationRef
       );
 
       setOfferings(result.offerings);
       setConflicts(result.conflicts);
       StorageService.saveExamOfferings(result.offerings, examType, academicYear, academicTerm);
 
-      StorageService.logExamChange({
-        examType,
-        academicYear,
-        academicTerm,
-        action: 'OPTIMIZE_SA',
-        description: `Optimasi Simulated Annealing selesai. Sisa konflik: ${result.conflicts.length}.`,
-        changedBy: currentUser.name,
-      });
-
+      const highConf = result.conflicts.filter(c => c.severity === 'high').length;
       showToast(
-        'success',
+        highConf === 0 ? 'success' : 'warning',
         'Optimasi Selesai',
-        `Jadwal ujian berhasil dioptimasi dengan ${result.conflicts.length} catatan konflik.`
+        highConf === 0
+          ? `Jadwal ${examType} berhasil dioptimasi tanpa konflik ruang atau pengawas!`
+          : `Optimasi selesai dengan ${highConf} bentrok yang perlu penyesuaian manual.`
       );
-    } catch (err: any) {
-      showToast('error', 'Optimasi Terkendala', err.message || 'Gagal menjalankan optimasi.');
+    } catch (err) {
+      console.error(err);
+      showToast('error', 'Optimasi Terkendala', 'Terjadi kesalahan saat menjalankan optimasi SA.');
     } finally {
       setIsOptimizing(false);
       setOptimizationProgress(null);
     }
   };
 
-  // Stop Optimizer
   const handleStopOptimization = () => {
-    stopOptimizationRef.current.current = true;
-    setIsOptimizing(false);
-    showToast('info', 'Optimasi Dihentikan', 'Algoritma Simulated Annealing dihentikan oleh pengguna.');
+    stopOptimizationRef.current = true;
+    showToast('info', 'Menghentikan Optimasi', 'Proses optimasi akan segera dihentikan...');
   };
 
-  // Manual Offering Save
-  const handleSaveOfferingModal = (updated: ExamOffering) => {
-    const updatedOfferings = offerings.map(o => (o.id === updated.id ? updated : o));
-    setOfferings(updatedOfferings);
-    StorageService.saveExamOfferings(updatedOfferings, examType, academicYear, academicTerm);
+  // Save changes to single ExamOffering
+  const handleSaveOffering = (updatedOffering: ExamOffering) => {
+    const updatedList = offerings.map(o => (o.id === updatedOffering.id ? updatedOffering : o));
+    setOfferings(updatedList);
+    StorageService.saveExamOfferings(updatedList, examType, academicYear, academicTerm);
 
-    StorageService.logExamChange({
-      examType,
-      academicYear,
-      academicTerm,
-      action: 'MANUAL_EDIT_OFFERING',
-      description: `Edit manual ujian ${updated.courseName} (${updated.sectionName || 'Utama'}).`,
-      before: offerings.find(o => o.id === updated.id),
-      after: updated,
-      changedBy: currentUser.name,
-      examOfferingId: updated.id,
+    // Re-evaluate conflicts
+    const detected = detectExamConflicts(updatedList, rooms, sessions, lecturers);
+    setConflicts(detected);
+
+    showToast(
+      'success',
+      'Jadwal Ujian Disimpan',
+      `Penjadwalan ${updatedOffering.courseName} (${updatedOffering.sectionName || 'A'}) berhasil diperbarui.`
+    );
+  };
+
+  // Clear slot for an offering
+  const handleClearSlot = (offeringId: string) => {
+    const target = offerings.find(o => o.id === offeringId);
+    if (!target) return;
+
+    const updatedList: ExamOffering[] = offerings.map(o => {
+      if (o.id === offeringId) {
+        return {
+          ...o,
+          examDate: undefined,
+          examSessionId: undefined,
+          roomIds: [],
+          status: 'draft',
+        };
+      }
+      return o;
     });
 
-    showToast('success', 'Perubahan Disimpan', `Ujian ${updated.courseName} diperbarui.`);
+    setOfferings(updatedList);
+    StorageService.saveExamOfferings(updatedList, examType, academicYear, academicTerm);
+
+    const detected = detectExamConflicts(updatedList, rooms, sessions, lecturers);
+    setConflicts(detected);
+
+    showToast('info', 'Slot Dikosongkan', `Alokasi waktu dan ruangan untuk ${target.courseName} telah dikosongkan.`);
   };
 
-  // Publish / Unpublish Schedule
-  const handleTogglePublish = () => {
-    if (!isAdmin) return;
-    const newStatus = !publishStatus.isPublished;
+  // Maps for rapid lookup
+  const roomMap = useMemo(() => new Map(rooms.map((r) => [r.id, r])), [rooms]);
+  const sessionMap = useMemo(() => new Map(sessions.map((s) => [s.id, s])), [sessions]);
+  const lecturerMap = useMemo(() => new Map(lecturers.map((l) => [l.id, l])), [lecturers]);
 
-    if (newStatus && conflicts.some(c => c.severity === 'high')) {
-      if (
-        !confirm(
-          'Masih terdapat konflik bentrok berbobot TINGGI pada jadwal ujian. Apakah Anda yakin ingin tetap menerbitkan jadwal ini?'
-        )
-      ) {
+  // Conflict item lookup per offering
+  const offeringConflictMap = useMemo(() => {
+    const map = new Map<string, ExamConflictItem[]>();
+    conflicts.forEach((c) => {
+      (c.examOfferingIds || []).forEach((id) => {
+        const list = map.get(id) || [];
+        list.push(c);
+        map.set(id, list);
+      });
+    });
+    return map;
+  }, [conflicts]);
+
+  // Filtered offerings for display
+  const filteredOfferings = useMemo(() => {
+    return offerings.filter((off) => {
+      if (filterSemester !== 'all' && String(off.semester) !== filterSemester) return false;
+      if (filterDate !== 'all' && off.examDate !== filterDate) return false;
+      if (filterRoom !== 'all' && (!off.roomIds || !off.roomIds.includes(filterRoom))) return false;
+
+      const s1 = off.supervisor1Id || off.supervisorLecturerIds?.[0];
+      const s2 = off.supervisor2Id || (off.supervisorLecturerIds?.[1] && off.supervisorLecturerIds[1] !== s1);
+      const isSupervisorsComplete = Boolean(s1 && s2);
+      const isScheduled = Boolean(off.examDate && off.examSessionId && off.roomIds?.length);
+      const hasConflict = (offeringConflictMap.get(off.id) || []).some(c => c.severity === 'high');
+
+      if (filterStatus === 'complete' && (!isScheduled || !isSupervisorsComplete || hasConflict)) return false;
+      if (filterStatus === 'incomplete_supervisor' && (!isScheduled || isSupervisorsComplete)) return false;
+      if (filterStatus === 'unscheduled' && isScheduled) return false;
+      if (filterStatus === 'conflict' && !hasConflict) return false;
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const cName = off.courseName.toLowerCase();
+        const cCode = off.courseCode.toLowerCase();
+        const sec = (off.sectionName || '').toLowerCase();
+        const supNames = (off.supervisorLecturerIds || [])
+          .map((id) => lecturerMap.get(id)?.name.toLowerCase() || '')
+          .join(' ');
+        const lecNames = (off.lecturerIds || [])
+          .map((id) => lecturerMap.get(id)?.name.toLowerCase() || '')
+          .join(' ');
+
+        if (!cName.includes(q) && !cCode.includes(q) && !sec.includes(q) && !supNames.includes(q) && !lecNames.includes(q)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [offerings, filterSemester, filterDate, filterRoom, filterStatus, searchQuery, offeringConflictMap, lecturerMap]);
+
+  // Statistics (Requirements 6 & 7: strictly separated)
+  const scheduledCount = offerings.filter((o) => o.examDate && o.examSessionId && o.roomIds?.length).length;
+  const completeSupervisorCount = offerings.filter((o) => {
+    const s1 = o.supervisor1Id || o.supervisorLecturerIds?.[0];
+    const s2 = o.supervisor2Id || (o.supervisorLecturerIds?.[1] && o.supervisorLecturerIds[1] !== s1);
+    return Boolean(s1 && s2);
+  }).length;
+
+  const hardConflicts = conflicts.filter(c => c.severity === 'high');
+  const warnings = conflicts.filter(c => c.severity !== 'high');
+  const hardConflictCount = hardConflicts.length;
+
+  // Warning visibility: incomplete supervisor warnings are ADMIN only (Requirement 6)
+  const visibleWarnings = isAdmin
+    ? warnings
+    : warnings.filter(w => w.type !== 'UNASSIGNED_SUPERVISOR');
+  const visibleWarningCount = visibleWarnings.length;
+
+  // Comprehensive Publish Validation (Requirement 8)
+  const publishValidation = useMemo(() => {
+    if (offerings.length === 0) {
+      return { allowed: false, reason: 'Belum ada kelas ujian untuk diterbitkan.' };
+    }
+    if (hardConflictCount > 0) {
+      return { allowed: false, reason: `Masih terdapat ${hardConflictCount} hard conflict pada jadwal ujian.` };
+    }
+    const unscheduled = offerings.filter(o => !o.examDate || !o.examSessionId);
+    if (unscheduled.length > 0) {
+      return { allowed: false, reason: `${unscheduled.length} kelas ujian belum memiliki waktu pelaksanaan.` };
+    }
+    const noRoom = offerings.filter(o => !o.roomIds || o.roomIds.length === 0);
+    if (noRoom.length > 0) {
+      return { allowed: false, reason: `${noRoom.length} kelas ujian belum dialokasikan ruangan.` };
+    }
+    const missingSup1 = offerings.filter(o => !o.supervisor1Id && (!o.supervisorLecturerIds || !o.supervisorLecturerIds[0]));
+    if (missingSup1.length > 0) {
+      return { allowed: false, reason: `${missingSup1.length} kelas ujian belum memiliki Pengawas 1 (Dosen Pengampu).` };
+    }
+    const missingSup2 = offerings.filter(o => !o.supervisor2Id && (!o.supervisorLecturerIds || !o.supervisorLecturerIds[1]));
+    if (missingSup2.length > 0) {
+      return { allowed: false, reason: 'Lengkapi seluruh pengawas ujian terlebih dahulu.' };
+    }
+    return { allowed: true, reason: '' };
+  }, [offerings, hardConflictCount]);
+
+  // Publish / Unpublish Toggle Action
+  const handleTogglePublish = () => {
+    if (!isAdmin) {
+      showToast('warning', 'Akses Terbatas', 'Hanya admin yang dapat mempublikasikan jadwal ujian.');
+      return;
+    }
+
+    const nextState = !publishStatus.isPublished;
+    if (nextState) {
+      if (!publishValidation.allowed) {
+        showToast('error', 'Belum Siap Publikasi', publishValidation.reason);
         return;
       }
     }
 
-    StorageService.setExamPublishStatus(examType, newStatus, currentUser.name, academicYear, academicTerm);
+    StorageService.setExamPublishStatus(examType, nextState, currentUser.name, academicYear, academicTerm);
     setPublishStatus({
-      isPublished: newStatus,
-      publishedAt: newStatus ? new Date().toISOString() : undefined,
-      publishedBy: newStatus ? currentUser.name : undefined,
+      isPublished: nextState,
+      publishedAt: nextState ? new Date().toISOString() : undefined,
+      publishedBy: nextState ? currentUser.name : undefined,
     });
 
-    // Update offerings state
-    setOfferings(prev =>
-      prev.map(o => ({
-        ...o,
-        status: newStatus ? 'published' : o.examDate && o.examSessionId ? 'scheduled' : 'draft',
-      }))
-    );
-
-    // Snapshot version automatically when published
-    if (newStatus) {
-      const newVersion = StorageService.createExamVersion(
-        examType,
-        `${academicYear} ${academicTerm} — ${examType} — Published v${versions.length + 1}`,
-        offerings,
-        'published',
-        currentUser.name,
-        'Otomatis dibuat saat publikasi jadwal ujian.',
-        academicYear,
-        academicTerm
-      );
-      setVersions(prev => [newVersion, ...prev]);
-    }
-
-    StorageService.logExamChange({
-      examType,
-      academicYear,
-      academicTerm,
-      action: newStatus ? 'PUBLISH_SCHEDULE' : 'UNPUBLISH_SCHEDULE',
-      description: newStatus ? `Jadwal ${examType} resmi diterbitkan.` : `Publikasi jadwal ${examType} dibatalkan.`,
-      changedBy: currentUser.name,
-    });
-
-    showToast(
-      newStatus ? 'success' : 'info',
-      newStatus ? 'Jadwal Ujian Diterbitkan!' : 'Publikasi Dibatalkan',
-      newStatus
-        ? `Jadwal ${examType} kini dapat diakses oleh Mahasiswa dan Dosen.`
-        : `Jadwal ${examType} dikembalikan ke status draft internal.`
-    );
-  };
-
-  // Restore Version Snapshot
-  const handleRestoreVersion = (ver: ExamVersion) => {
-    setOfferings(ver.offerings);
-    StorageService.saveExamOfferings(ver.offerings, examType, academicYear, academicTerm);
-    StorageService.logExamChange({
-      examType,
-      academicYear,
-      academicTerm,
-      action: 'RESTORE_VERSION',
-      description: `Memulihkan jadwal ke versi "${ver.versionName}".`,
-      changedBy: currentUser.name,
-    });
     showToast(
       'success',
-      'Versi Dipulihkan',
-      `Jadwal ${examType} telah dikembalikan sesuai snapshot "${ver.versionName}".`
+      nextState ? `Jadwal ${examType} Resmi Diterbitkan` : `Jadwal ${examType} Dikembalikan ke Draft`,
+      nextState
+        ? `Jadwal ujian ${examType} kini dapat diakses resmi oleh seluruh mahasiswa dan dosen.`
+        : `Jadwal ${examType} telah berstatus draft untuk penyesuaian internal.`
     );
-  };
-
-  // Filtered Offerings for Schedule View
-  const filteredScheduleOfferings = useMemo(() => {
-    return offerings.filter(o => {
-      if (scheduleFilterDate !== 'all' && o.examDate !== scheduleFilterDate) return false;
-      if (scheduleFilterSemester !== 'all' && String(o.semester) !== scheduleFilterSemester) return false;
-      if (scheduleFilterRoom !== 'all' && !o.roomIds.includes(scheduleFilterRoom)) return false;
-      if (scheduleFilterSearch) {
-        const query = scheduleFilterSearch.toLowerCase();
-        const matchesName = o.courseName.toLowerCase().includes(query);
-        const matchesCode = o.courseCode.toLowerCase().includes(query);
-        const matchesSection = o.sectionName?.toLowerCase().includes(query);
-        if (!matchesName && !matchesCode && !matchesSection) return false;
-      }
-      return true;
-    });
-  }, [offerings, scheduleFilterDate, scheduleFilterSemester, scheduleFilterRoom, scheduleFilterSearch]);
-
-  // Group filtered offerings by Date and then by Session (Requirement 17)
-  const groupedSchedule = useMemo(() => {
-    // Sort dates
-    const dateGroups = new Map<string, ExamOffering[]>();
-    for (const off of filteredScheduleOfferings) {
-      const dateKey = off.examDate || 'Belum Ditentukan';
-      const list = dateGroups.get(dateKey) || [];
-      list.push(off);
-      dateGroups.set(dateKey, list);
-    }
-
-    const sortedDates = Array.from(dateGroups.keys()).sort((a, b) => {
-      if (a === 'Belum Ditentukan') return 1;
-      if (b === 'Belum Ditentukan') return -1;
-      return a.localeCompare(b);
-    });
-
-    return sortedDates.map(date => {
-      const items = dateGroups.get(date) || [];
-      // Group by session inside this date
-      const sessionGroups = new Map<string, ExamOffering[]>();
-      for (const item of items) {
-        const sesKey = item.examSessionId || 'unassigned';
-        const list = sessionGroups.get(sesKey) || [];
-        list.push(item);
-        sessionGroups.set(sesKey, list);
-      }
-
-      // Sort session keys by session startTime
-      const sortedSessionKeys = Array.from(sessionGroups.keys()).sort((a, b) => {
-        const sesA = sessions.find(s => s.id === a);
-        const sesB = sessions.find(s => s.id === b);
-        if (!sesA) return 1;
-        if (!sesB) return -1;
-        return sesA.startTime.localeCompare(sesB.startTime);
-      });
-
-      return {
-        date,
-        sessions: sortedSessionKeys.map(sesKey => ({
-          sessionId: sesKey,
-          session: sessions.find(s => s.id === sesKey),
-          offerings: sessionGroups.get(sesKey) || [],
-        })),
-      };
-    });
-  }, [filteredScheduleOfferings, sessions]);
-
-  // Helper formatting for Indonesian Date
-  const formatIndonesianDate = (dateStr: string) => {
-    if (!dateStr || dateStr === 'Belum Ditentukan') return 'Belum Ditentukan';
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('id-ID', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      }).toUpperCase();
-    } catch {
-      return dateStr;
-    }
   };
 
   return (
     <div className="space-y-6 pb-12">
-      {/* 1. Header Toolbar: UTS/UAS & Year/Term Selection & Action Buttons */}
-      <div className="p-4 sm:p-6 bg-white rounded-3xl border border-slate-200/80 shadow-2xs space-y-4">
+      {/* 1. TOP HEADER & EXAM TYPE SWITCHER */}
+      <div className="p-6 bg-white rounded-3xl border border-slate-200/80 shadow-2xs space-y-5">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 font-bold text-xs rounded-lg border border-indigo-100 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5" />
-                MODUL PENJADWALAN UJIAN
-              </span>
-              <span
-                className={`px-2.5 py-1 text-xs font-bold rounded-lg border ${
-                  publishStatus.isPublished
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : 'bg-amber-50 text-amber-700 border-amber-200'
-                }`}
-              >
-                {publishStatus.isPublished ? '● TERBIT (PUBLISHED)' : '○ DRAFT INTERNAL'}
-              </span>
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-xs">
+                <GraduationCap className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                  Penyusunan Jadwal Ujian ({examType})
+                  <span
+                    className={`text-xs px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                      publishStatus.isPublished
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                    }`}
+                  >
+                    {publishStatus.isPublished ? '● Resmi & Terbit' : '○ Draft'}
+                  </span>
+                </h1>
+                <p className="text-xs text-slate-500 font-medium">
+                  Semester {academicTerm} {academicYear} • Master Dosen Pengampu & 2 Pengawas per Ruang
+                </p>
+              </div>
             </div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              Penyusunan Jadwal Ujian {examType}
-            </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Sistem Penjadwalan Ujian Semester Elektro-Scheduler (UTS & UAS Terpisah, Optimasi Ruangan & Sesi)
-            </p>
           </div>
 
-          {/* UTS vs UAS Selector & Academic Filters */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* UTS / UAS Switcher */}
-            <div className="inline-flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
+          {/* Action Buttons Toolbar */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Sync from Lecture Schedule */}
+            {isAdmin && (
+              <button
+                onClick={() => handleSyncFromLectures(false)}
+                id="btn-sync-exam-lectures"
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Sinkronkan data kelas dan dosen pengampu dari jadwal perkuliahan"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-indigo-600" />
+                Sinkronkan dari Jadwal Kuliah
+              </button>
+            )}
+
+            {/* Config & Period Modal Button */}
+            {isAdmin && (
+              <button
+                onClick={() => setIsSessionModalOpen(true)}
+                id="btn-exam-sessions"
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                Sesi & Periode Ujian
+              </button>
+            )}
+
+            {/* Version History Modal Button */}
+            <button
+              onClick={() => setIsHistoryModalOpen(true)}
+              id="btn-exam-history"
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <History className="w-3.5 h-3.5 text-indigo-600" />
+              Riwayat & Versi
+            </button>
+
+            {/* Publish / Unpublish Toggle (Requirement 8) */}
+            {isAdmin && (
+              <div className="relative group">
+                <button
+                  onClick={handleTogglePublish}
+                  id="btn-toggle-publish-exam"
+                  disabled={!publishStatus.isPublished && !publishValidation.allowed}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs ${
+                    publishStatus.isPublished
+                      ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 cursor-pointer'
+                      : !publishValidation.allowed
+                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
+                  }`}
+                >
+                  {publishStatus.isPublished ? (
+                    <>
+                      <RotateCcw className="w-4 h-4" />
+                      Batalkan Terbit
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      Terbitkan Jadwal {examType}
+                    </>
+                  )}
+                </button>
+                {!publishStatus.isPublished && !publishValidation.allowed && (
+                  <span className="hidden group-hover:block absolute bottom-full mb-1 right-0 w-64 p-2 bg-slate-900 text-white text-[10px] rounded-lg shadow-lg text-center z-50 pointer-events-none">
+                    {publishValidation.reason}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 2. UNIFIED TOOLBAR (Requirement 15): [ UTS ] [ UAS ] + [ Matriks Jadwal ] [ Daftar Tabel ] [ Filter ] [ ⛶ Fullsize ] */}
+        <div className="pt-4 border-t border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          {/* Left: Exam Type Switcher [ UTS ] [ UAS ] */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Jenis Ujian:</span>
+            <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200/80">
               <button
                 onClick={() => setExamType('UTS')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                id="tab-uts"
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   examType === 'UTS'
-                    ? 'bg-indigo-600 text-white shadow-xs'
+                    ? 'bg-white text-indigo-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                UTS
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                <span>UTS (Tengah Semester)</span>
               </button>
               <button
                 onClick={() => setExamType('UAS')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                id="tab-uas"
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   examType === 'UAS'
-                    ? 'bg-indigo-600 text-white shadow-xs'
+                    ? 'bg-white text-indigo-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                UAS
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                <span>UAS (Akhir Semester)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Right: Board Controls [ Matriks Jadwal ] [ Daftar Tabel ] [ Filter ] [ ⛶ Fullsize ] */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200/80">
+              <button
+                onClick={() => setViewMode('matrix')}
+                id="btn-exam-view-matrix"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === 'matrix'
+                    ? 'bg-white text-indigo-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Matriks Jadwal</span>
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                id="btn-exam-view-list"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === 'list'
+                    ? 'bg-white text-indigo-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <List className="w-3.5 h-3.5" />
+                <span>Daftar Tabel</span>
               </button>
             </div>
 
-            {/* Academic Year Selector */}
-            <select
-              value={academicYear}
-              onChange={e => setAcademicYear(e.target.value)}
-              className="px-3 py-2 text-xs font-semibold bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-            >
-              <option value="2026/2027">2026/2027</option>
-              <option value="2025/2026">2025/2026</option>
-              <option value="2024/2025">2024/2025</option>
-            </select>
-
-            {/* Academic Term Switcher */}
-            <div className="inline-flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-              <button
-                onClick={() => setAcademicTerm('Ganjil')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  academicTerm === 'Ganjil'
-                    ? 'bg-white text-indigo-700 shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
-                Ganjil
-              </button>
-              <button
-                onClick={() => setAcademicTerm('Genap')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  academicTerm === 'Genap'
-                    ? 'bg-white text-indigo-700 shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
-                Genap
-              </button>
-            </div>
-
-            {/* Kelola Sesi Ujian */}
             <button
-              onClick={() => setIsSessionModalOpen(true)}
-              className="px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+              onClick={() => setShowFilterBar(prev => !prev)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                showFilterBar
+                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+              }`}
             >
-              <Clock className="w-3.5 h-3.5 text-indigo-600" />
-              Sesi Ujian ({sessions.length})
-            </button>
-
-            {/* Riwayat & Versi */}
-            <button
-              onClick={() => setIsHistoryModalOpen(true)}
-              className="px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
-            >
-              <History className="w-3.5 h-3.5 text-slate-500" />
-              Versi ({versions.length})
-            </button>
-
-            {/* Log Audit */}
-            <button
-              onClick={() => setIsChangeLogModalOpen(true)}
-              className="px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
-            >
-              <FileText className="w-3.5 h-3.5 text-slate-500" />
-              Log Audit
+              <Filter className="w-3.5 h-3.5" />
+              <span>Filter</span>
             </button>
           </div>
-        </div>
-
-        {/* Workflow Tabs Navigation */}
-        <div className="flex border-b border-slate-100 overflow-x-auto gap-2 pt-2">
-          <button
-            onClick={() => setActiveTab('selection')}
-            className={`pb-3 px-3 text-xs font-bold flex items-center gap-1.5 border-b-2 transition-colors shrink-0 ${
-              activeTab === 'selection'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            1. Pemilihan Mata Kuliah & Peserta ({selectedCourseIds.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab('allocation')}
-            className={`pb-3 px-3 text-xs font-bold flex items-center gap-1.5 border-b-2 transition-colors shrink-0 ${
-              activeTab === 'allocation'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            2. Pengawas & Alokasi Ruang ({offerings.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab('schedule')}
-            className={`pb-3 px-3 text-xs font-bold flex items-center gap-1.5 border-b-2 transition-colors shrink-0 ${
-              activeTab === 'schedule'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Calendar className="w-3.5 h-3.5" />
-            3. Jadwal & Optimasi
-            {conflicts.length > 0 && (
-              <span className="px-1.5 py-0.2 bg-rose-100 text-rose-700 rounded-full text-[10px] font-bold">
-                {conflicts.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('publish')}
-            className={`pb-3 px-3 text-xs font-bold flex items-center gap-1.5 border-b-2 transition-colors shrink-0 ${
-              activeTab === 'publish'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Share2 className="w-3.5 h-3.5" />
-            4. Terbitkan & Ekspor
-          </button>
         </div>
       </div>
 
-      {/* Access Control Notice for Non-Admins */}
-      {!isAdmin && (
-        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-3 text-xs text-amber-800">
-          <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
-          <span>
-            <strong>Mode Lihat Saja:</strong> Anda login sebagai <strong>{currentUser.role.toUpperCase()}</strong>.
-            Hanya Administrator yang dapat mengubah, mengoptimasi, atau menerbitkan jadwal ujian.
-          </span>
+      {/* 6. BOARD CONTAINER */}
+      <div className="space-y-4">
+        {/* Filter Controls Bar */}
+      {syncStatus.hasChanged && !isSyncBannerDismissed && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-start gap-3 text-xs text-amber-950">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-900">Jadwal Perkuliahan Sumber Telah Berubah</p>
+              <p className="text-[11px] text-amber-800 mt-0.5">
+                {syncStatus.message} Sinkronkan data untuk menyelaraskan kelas ujian baru dengan tetap mempertahankan tanggal dan pengawas yang sudah diatur.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setIsSyncBannerDismissed(true)}
+              className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+            >
+              Pertahankan Draft Ujian
+            </button>
+            <button
+              onClick={() => handleSyncFromLectures(false)}
+              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition-colors shadow-2xs cursor-pointer"
+            >
+              Sinkronkan Data
+            </button>
+          </div>
         </div>
       )}
 
-      {/* TAB 1: PEMILIHAN MATA KULIAH & PESERTA */}
-      {activeTab === 'selection' && (
-        <div className="space-y-6">
-          <div className="p-5 bg-white rounded-3xl border border-slate-200/80 shadow-2xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-indigo-600" />
-                  Katalog Mata Kuliah untuk Ujian {examType}
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Pilih mata kuliah secara manual atau per paket semester. Masukkan jumlah peserta ujian (input kosong tanpa default 0).
-                </p>
-              </div>
+      {/* 4. SUMMARY STATS CARDS (Requirement 7: strictly separated) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+        <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Kelas</span>
+            <Layers className="w-4 h-4 text-indigo-600" />
+          </div>
+          <div className="text-2xl font-black text-slate-900 mt-2">{offerings.length}</div>
+          <div className="text-[11px] text-slate-500 mt-0.5">Disinkronkan dari perkuliahan</div>
+        </div>
 
-              {/* Quick Semester Package Buttons */}
-              {isAdmin && (
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] font-semibold text-slate-500">Pilih Paket:</span>
-                  {[1, 3, 5, 7].map(sem => (
-                    <button
-                      key={sem}
-                      onClick={() => handleSelectSemesterPackage(sem)}
-                      className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
-                    >
-                      Sem {sem}
-                    </button>
-                  ))}
-                </div>
-              )}
+        <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Slot & Ruang Terisi</span>
+            <Calendar className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="text-2xl font-black text-emerald-700 mt-2">
+            {scheduledCount} <span className="text-xs font-semibold text-slate-400">/ {offerings.length}</span>
+          </div>
+          <div className="text-[11px] text-slate-500 mt-0.5">
+            {offerings.length > 0 ? `${Math.round((scheduledCount / offerings.length) * 100)}% terjadwal` : '0%'}
+          </div>
+        </div>
+
+        <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pengawas Lengkap</span>
+            <UserCheck className="w-4 h-4 text-sky-600" />
+          </div>
+          <div className="text-2xl font-black text-sky-700 mt-2">
+            {completeSupervisorCount} <span className="text-xs font-semibold text-slate-400">/ {offerings.length}</span>
+          </div>
+          <div className="text-[11px] text-slate-500 mt-0.5">
+            {offerings.length - completeSupervisorCount > 0 ? (
+              <span className="text-amber-600 font-bold">{offerings.length - completeSupervisorCount} kelas belum 2 pengawas</span>
+            ) : (
+              'Semua pengawas lengkap (2/2)'
+            )}
+          </div>
+        </div>
+
+        {/* Hard Conflict Card */}
+        <div className={`p-4 rounded-2xl border shadow-2xs ${
+          hardConflictCount > 0 ? 'bg-rose-50/60 border-rose-200' : 'bg-white border-slate-200'
+        }`}>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Hard Conflict</span>
+            <ShieldAlert className={`w-4 h-4 ${hardConflictCount > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
+          </div>
+          <div className={`text-2xl font-black mt-2 ${hardConflictCount > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+            {hardConflictCount}
+          </div>
+          <div className="text-[11px] text-slate-500 mt-0.5">
+            {hardConflictCount > 0 ? 'Bentrok ruang / pengawas bersamaan' : 'Bebas Hard Conflict'}
+          </div>
+        </div>
+
+        {/* Warning Card (Requirement 6) */}
+        <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Warning</span>
+            <AlertTriangle className="w-4 h-4 text-amber-600" />
+          </div>
+          <div className="text-2xl font-black text-amber-700 mt-2">{visibleWarningCount}</div>
+          <div className="text-[11px] text-slate-500 mt-0.5">
+            {isAdmin ? 'Pengawas 2 belum diisi / catatan admin' : 'Peringatan jadwal'}
+          </div>
+        </div>
+      </div>
+
+      {/* 5. SA OPTIMIZER TOOLBAR */}
+      {isAdmin && (
+        <div className="p-5 bg-white rounded-3xl border border-slate-200/80 shadow-2xs space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-indigo-600" />
+                Optimasi Jadwal Ujian ({examType}) dengan Simulated Annealing
+              </h3>
+              <p className="text-xs text-slate-500">
+                Alokasikan tanggal, sesi ujian (100 menit / 2 sesi master), dan ruangan secara otomatis tanpa bentrok.
+              </p>
             </div>
 
-            {/* Filter & Search Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Cari kode atau nama mata kuliah..."
-                  value={searchCourseQuery}
-                  onChange={e => setSearchCourseQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+            <div className="flex items-center gap-2 flex-wrap">
+              {!isOptimizing ? (
+                <button
+                  onClick={handleRunSAOptimization}
+                  id="btn-exam-run-sa"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  Jalankan Optimasi SA
+                </button>
+              ) : (
+                <button
+                  onClick={handleStopOptimization}
+                  id="btn-exam-stop-sa"
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs animate-pulse cursor-pointer"
+                >
+                  <Square className="w-3.5 h-3.5" />
+                  Hentikan Optimasi
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Progress bar during SA optimization */}
+          {isOptimizing && optimizationProgress && (
+            <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-2xl space-y-2">
+              <div className="flex items-center justify-between text-xs font-semibold text-indigo-900">
+                <span>
+                  Iterasi {optimizationProgress.iteration} / {optimizationProgress.maxIterations} • Suhu: {optimizationProgress.temperature.toFixed(1)}
+                </span>
+                <span>Konflik: {optimizationProgress.conflictCount}</span>
+              </div>
+              <div className="w-full h-2 bg-indigo-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-indigo-600 transition-all duration-100"
+                  style={{
+                    width: `${(optimizationProgress.iteration / optimizationProgress.maxIterations) * 100}%`,
+                  }}
                 />
               </div>
-
-              <select
-                value={filterSemester}
-                onChange={e => setFilterSemester(e.target.value)}
-                className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-              >
-                <option value="all">Semua Semester</option>
-                {[1, 2, 3, 4, 5, 6, 7, 8].map(s => (
-                  <option key={s} value={String(s)}>Semester {s}</option>
-                ))}
-              </select>
-
-              <select
-                value={filterCurriculum}
-                onChange={e => setFilterCurriculum(e.target.value)}
-                className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-              >
-                <option value="all">Semua Kurikulum</option>
-                <option value="2026">Kurikulum 2026</option>
-                <option value="2022">Kurikulum 2022</option>
-              </select>
             </div>
-
-            {/* Table Mata Kuliah */}
-            <div className="overflow-x-auto border border-slate-200 rounded-2xl">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
-                  <tr>
-                    <th className="p-3 w-10 text-center">Pilih</th>
-                    <th className="p-3">Kode & Mata Kuliah</th>
-                    <th className="p-3">Semester</th>
-                    <th className="p-3">Kurikulum</th>
-                    <th className="p-3 w-40">Jumlah Peserta Ujian</th>
-                    <th className="p-3 w-32">Durasi ({examType})</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {courses
-                    .filter(c => {
-                      if (filterSemester !== 'all' && String(c.semester) !== filterSemester) return false;
-                      if (filterCurriculum !== 'all' && String(c.curriculumYear) !== filterCurriculum) return false;
-                      if (searchCourseQuery) {
-                        const q = searchCourseQuery.toLowerCase();
-                        if (!c.name.toLowerCase().includes(q) && !c.code.toLowerCase().includes(q)) return false;
-                      }
-                      return true;
-                    })
-                    .map(course => {
-                      const isSelected = selectedCourseIds.includes(course.id);
-                      return (
-                        <tr
-                          key={course.id}
-                          className={`transition-colors ${isSelected ? 'bg-indigo-50/40' : 'hover:bg-slate-50'}`}
-                        >
-                          <td className="p-3 text-center">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              disabled={!isAdmin}
-                              onChange={() => handleToggleCourseSelect(course.id)}
-                              className="rounded-md text-indigo-600 focus:ring-indigo-500"
-                            />
-                          </td>
-                          <td className="p-3">
-                            <span className="font-bold text-slate-900 block">{course.name}</span>
-                            <span className="text-[11px] text-slate-500 font-mono">
-                              {course.code} • {course.sks} SKS
-                            </span>
-                          </td>
-                          <td className="p-3 font-semibold text-slate-700">Semester {course.semester}</td>
-                          <td className="p-3">
-                            <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-mono text-[11px]">
-                              {course.curriculumYear}
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            <input
-                              type="number"
-                              min={1}
-                              disabled={!isSelected || !isAdmin}
-                              placeholder="Ketik peserta..."
-                              value={courseStudentInputs[course.id] ?? ''}
-                              onChange={e =>
-                                setCourseStudentInputs(prev => ({
-                                  ...prev,
-                                  [course.id]: e.target.value,
-                                }))
-                              }
-                              className={`w-full px-2.5 py-1.5 text-xs rounded-xl border font-semibold ${
-                                isSelected
-                                  ? 'bg-white border-indigo-300 text-indigo-900 focus:ring-2 focus:ring-indigo-500'
-                                  : 'bg-slate-100 border-slate-200 text-slate-400'
-                              }`}
-                            />
-                          </td>
-                          <td className="p-3">
-                            <select
-                              disabled={!isSelected || !isAdmin}
-                              value={courseDurations[course.id] || examConfig.defaultDurationMinutes}
-                              onChange={e =>
-                                setCourseDurations(prev => ({
-                                  ...prev,
-                                  [course.id]: parseInt(e.target.value, 10),
-                                }))
-                              }
-                              className={`w-full px-2 py-1.5 text-xs rounded-xl border ${
-                                isSelected ? 'bg-white border-slate-200' : 'bg-slate-100 text-slate-400'
-                              }`}
-                            >
-                              <option value={60}>60 Menit</option>
-                              <option value={90}>90 Menit</option>
-                              <option value={100}>100 Menit</option>
-                              <option value={120}>120 Menit</option>
-                            </select>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Bottom Generate Button */}
-            {isAdmin && (
-              <div className="flex items-center justify-between pt-2">
-                <span className="text-xs text-slate-500">
-                  {selectedCourseIds.length} mata kuliah dipilih untuk ujian {examType}.
-                </span>
-                <button
-                  onClick={handleGenerateOfferingsFromCourses}
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-xs transition-colors"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  Generate Exam Offerings & Bagi Seksi
-                </button>
-              </div>
-            )}
-          </div>
+          )}
         </div>
       )}
 
-      {/* TAB 2: PENGAWAS & ALOKASI RUANG */}
-      {activeTab === 'allocation' && (
-        <div className="space-y-6">
-          <div className="p-5 bg-white rounded-3xl border border-slate-200/80 shadow-2xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <Users className="w-4 h-4 text-indigo-600" />
-                  Daftar Seksi Ujian & Alokasi Pengawas / Ruang
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Setiap mata kuliah telah dipecah menjadi seksi (misal A, B, C) sesuai kapasitas. Pilih pengawas ujian dan alokasikan ruangan.
-                </p>
-              </div>
-
-              {isAdmin && (
-                <button
-                  onClick={() => setActiveTab('schedule')}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
-                >
-                  Lanjut ke Penyusunan Jadwal
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-
-            {offerings.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                <Layers className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                <p className="text-xs font-medium text-slate-600">Belum ada exam offerings yang dibuat.</p>
-                <button
-                  onClick={() => setActiveTab('selection')}
-                  className="mt-3 px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-xl"
-                >
-                  Pilih Mata Kuliah Sekarang
-                </button>
-              </div>
-            ) : (
-              <div className="overflow-x-auto border border-slate-200 rounded-2xl">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
-                    <tr>
-                      <th className="p-3">Mata Kuliah & Seksi</th>
-                      <th className="p-3">Semester</th>
-                      <th className="p-3">Peserta</th>
-                      <th className="p-3">Dosen Pengampu</th>
-                      <th className="p-3">Pengawas Ujian</th>
-                      <th className="p-3">Ruangan</th>
-                      <th className="p-3 text-center w-20">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {offerings.map(off => {
-                      const roomObj = rooms.find(r => off.roomIds.includes(r.id));
-                      const isCapShort = roomObj ? roomObj.capacity < off.studentCount : false;
-                      const supervisorNames = lecturers
-                        .filter(l => off.supervisorLecturerIds?.includes(l.id))
-                        .map(l => l.name);
-
-                      const lecturerNames = lecturers
-                        .filter(l => off.lecturerIds?.includes(l.id))
-                        .map(l => l.name);
-
-                      return (
-                        <tr key={off.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="p-3">
-                            <span className="font-bold text-slate-900 block">{off.courseName}</span>
-                            <span className="text-[11px] text-slate-500 font-mono">
-                              {off.courseCode} • Seksi {off.sectionName || 'Utama'}
-                            </span>
-                          </td>
-                          <td className="p-3 font-semibold text-slate-700">Sem {off.semester}</td>
-                          <td className="p-3">
-                            <span className="px-2 py-1 bg-indigo-50 text-indigo-700 font-bold rounded-lg text-xs">
-                              {off.studentCount} Mhs
-                            </span>
-                          </td>
-                          <td className="p-3 text-slate-600">
-                            {lecturerNames.length > 0 ? lecturerNames.join(', ') : '—'}
-                          </td>
-                          <td className="p-3">
-                            {supervisorNames.length > 0 ? (
-                              <span className="font-semibold text-indigo-700">
-                                {supervisorNames.join(', ')}
-                              </span>
-                            ) : (
-                              <span className="text-amber-600 font-medium italic">
-                                Pengawas belum ditentukan
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-3">
-                            {roomObj ? (
-                              <div>
-                                <span className="font-bold text-slate-800">{roomObj.name}</span>
-                                <span
-                                  className={`block text-[10px] ${
-                                    isCapShort ? 'text-rose-600 font-bold' : 'text-slate-500'
-                                  }`}
-                                >
-                                  Kapasitas: {roomObj.capacity} kursi {isCapShort && '(Kurang!)'}
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-slate-400 italic">Belum diplot</span>
-                            )}
-                          </td>
-                          <td className="p-3 text-center">
-                            {isAdmin && (
-                              <button
-                                onClick={() => setEditingOffering(off)}
-                                className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                title="Edit Seksi Ujian"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: JADWAL & OPTIMASI (HEURISTIC & SA) */}
-      {activeTab === 'schedule' && (
-        <div className="space-y-6">
-          {/* Optimization Controls Bar */}
-          {isAdmin && (
-            <div className="p-5 bg-white rounded-3xl border border-slate-200/80 shadow-2xs space-y-4">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-indigo-600" />
-                    Mesin Penjadwalan & Optimasi Simulated Annealing
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Jalankan generator heuristik atau optimasi SA untuk menempatkan ujian pada tanggal, sesi, dan ruangan tanpa bentrok.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    onClick={handleGenerateInitialSchedule}
-                    disabled={isOptimizing}
-                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
-                  >
-                    <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                    Generate Jadwal Awal (Heuristik)
-                  </button>
-
-                  {!isOptimizing ? (
-                    <button
-                      onClick={handleRunSAOptimization}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs"
-                    >
-                      <Play className="w-3.5 h-3.5" />
-                      Jalankan Optimasi SA
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleStopOptimization}
-                      className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs animate-pulse"
-                    >
-                      <Square className="w-3.5 h-3.5" />
-                      Hentikan Optimasi
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Progress bar during optimization */}
-              {isOptimizing && optimizationProgress && (
-                <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-2xl space-y-2">
-                  <div className="flex items-center justify-between text-xs font-semibold text-indigo-900">
-                    <span>
-                      Iterasi {optimizationProgress.iteration} / {optimizationProgress.maxIterations} • Suhu:{' '}
-                      {optimizationProgress.temperature.toFixed(1)}
-                    </span>
-                    <span>Konflik: {optimizationProgress.conflictCount}</span>
-                  </div>
-                  <div className="w-full h-2 bg-indigo-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-indigo-600 transition-all duration-100"
-                      style={{
-                        width: `${(optimizationProgress.iteration / optimizationProgress.maxIterations) * 100}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Conflict Warnings Panel */}
-          {conflicts.length > 0 && (
-            <div className="p-5 bg-white rounded-3xl border border-rose-200 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-rose-700 uppercase tracking-wider flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-rose-600" />
-                  Deteksi Konflik & Peringatan ({conflicts.length})
-                </h4>
-                <span className="text-[11px] text-slate-500">
-                  {conflicts.filter(c => c.severity === 'high').length} Kritis •{' '}
-                  {conflicts.filter(c => c.severity === 'medium').length} Sedang / Potensi
-                </span>
-              </div>
-
-              <div className="max-h-48 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-100">
-                {conflicts.map(c => (
-                  <div key={c.id} className="pt-2 text-xs flex items-start gap-2.5">
-                    <span
-                      className={`px-2 py-0.5 text-[10px] font-bold rounded-md uppercase mt-0.5 shrink-0 ${
-                        c.severity === 'high'
-                          ? 'bg-rose-100 text-rose-800'
-                          : c.severity === 'medium'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-slate-100 text-slate-700'
-                      }`}
-                    >
-                      {c.type}
-                    </span>
-                    <div>
-                      <h5 className="font-bold text-slate-900">{c.title}</h5>
-                      <p className="text-slate-600 text-[11px] mt-0.5">{c.description}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Schedule Filters Bar */}
-          <div className="p-4 bg-white rounded-3xl border border-slate-200/80 shadow-2xs flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mr-2">
+      {/* 6. BOARD CONTAINER */}
+        {/* Filter Controls Bar */}
+        {showFilterBar && (
+          <div className="p-3.5 sm:p-4 bg-white rounded-3xl border border-slate-200/80 shadow-2xs flex flex-wrap items-center gap-3 shrink-0">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mr-1">
               <Filter className="w-3.5 h-3.5 text-indigo-600" />
-              Filter Tampilan:
+              Filter:
             </div>
 
+            {/* Semester */}
             <select
-              value={scheduleFilterDate}
-              onChange={e => setScheduleFilterDate(e.target.value)}
-              className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+              value={filterSemester}
+              onChange={(e) => setFilterSemester(e.target.value)}
+              className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="all">Semua Semester</option>
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                <option key={s} value={String(s)}>
+                  Semester {s}
+                </option>
+              ))}
+            </select>
+
+            {/* Tanggal Ujian */}
+            <select
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500"
             >
               <option value="all">Semua Tanggal</option>
-              {availableDates.map(d => (
+              {availableDates.map((d) => (
                 <option key={d} value={d}>
                   {formatIndonesianDate(d)}
                 </option>
               ))}
             </select>
 
+            {/* Ruangan */}
             <select
-              value={scheduleFilterSemester}
-              onChange={e => setScheduleFilterSemester(e.target.value)}
-              className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-            >
-              <option value="all">Semua Semester</option>
-              {[1, 2, 3, 4, 5, 6, 7, 8].map(s => (
-                <option key={s} value={String(s)}>Semester {s}</option>
-              ))}
-            </select>
-
-            <select
-              value={scheduleFilterRoom}
-              onChange={e => setScheduleFilterRoom(e.target.value)}
-              className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+              value={filterRoom}
+              onChange={(e) => setFilterRoom(e.target.value)}
+              className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500"
             >
               <option value="all">Semua Ruangan</option>
-              {rooms.map(r => (
+              {rooms.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name} ({r.capacity} kursi)
                 </option>
               ))}
             </select>
 
+            {/* Status Filter */}
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as any)}
+              className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="all">Semua Status</option>
+              <option value="complete">Lengkap (Terjadwal & 2 Pengawas)</option>
+              <option value="incomplete_supervisor">Pengawas Belum Lengkap (&lt;2)</option>
+              <option value="unscheduled">Belum Terjadwal</option>
+              <option value="conflict">Bentrok / Peringatan</option>
+            </select>
+
+            {/* Search Input */}
             <div className="relative ml-auto">
               <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Cari ujian..."
-                value={scheduleFilterSearch}
-                onChange={e => setScheduleFilterSearch(e.target.value)}
-                className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                placeholder="Cari MK / Dosen / Pengawas..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 w-48 sm:w-64"
               />
             </div>
           </div>
+        )}
 
-          {/* 17. TAMPILAN JADWAL UJIAN GROUPED BY DATE & SESSION */}
-          <div className="space-y-6">
-            {groupedSchedule.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 bg-white rounded-3xl border border-dashed border-slate-200">
-                <Calendar className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                <p className="text-xs font-semibold text-slate-600">Tidak ada jadwal ujian yang sesuai dengan filter.</p>
-              </div>
-            ) : (
-              groupedSchedule.map(dateGroup => (
-                <div
-                  key={dateGroup.date}
-                  className="bg-white rounded-3xl border border-slate-200/80 shadow-2xs overflow-hidden"
-                >
-                  {/* Date Header */}
-                  <div className="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <Calendar className="w-4 h-4 text-indigo-400" />
-                      <h3 className="text-xs font-black tracking-wider uppercase font-mono">
-                        {formatIndonesianDate(dateGroup.date)}
-                      </h3>
-                    </div>
-                    <span className="text-[11px] text-slate-400 font-mono">
-                      {dateGroup.sessions.reduce((sum, s) => sum + s.offerings.length, 0)} Ujian
-                    </span>
-                  </div>
+        {/* 7. MAIN VIEW AREA: MATRIKS OR LIST */}
+        <div>
+          {viewMode === 'matrix' ? (
+            <ExamBlockMatrix
+              offerings={filteredOfferings}
+              rooms={rooms}
+              sessions={sessions}
+              lecturers={lecturers}
+              availableDates={availableDates}
+              conflicts={conflicts}
+              examType={examType}
+              userRole={currentUser.role}
+              onSelectOffering={(off) => {
+                setEditingOffering(off);
+              }}
+            />
+          ) : (
+            <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="p-3.5">Mata Kuliah & Kurikulum</th>
+                      <th className="p-3.5">Sem</th>
+                      <th className="p-3.5">Kelas</th>
+                      <th className="p-3.5">Peserta</th>
+                      <th className="p-3.5">Dosen Pengampu</th>
+                      <th className="p-3.5">Tanggal & Sesi Ujian</th>
+                      <th className="p-3.5">Ruangan</th>
+                      <th className="p-3.5">Pengawas 1 (Auto)</th>
+                      <th className="p-3.5">Pengawas 2 (Manual)</th>
+                      <th className="p-3.5">Status</th>
+                      <th className="p-3.5 text-center w-24">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredOfferings.length === 0 ? (
+                      <tr>
+                        <td colSpan={11} className="p-12 text-center text-slate-400">
+                          <GraduationCap className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                          <p className="font-semibold text-slate-600">Tidak ada kelas ujian yang sesuai filter.</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredOfferings.map((off) => {
+                        const roomObj = rooms.find((r) => off.roomIds?.includes(r.id));
+                        const sessionObj = sessions.find((s) => s.id === off.examSessionId);
+                        const isCapShort = roomObj ? roomObj.capacity < off.studentCount : false;
 
-                  {/* Sessions within this Date */}
-                  <div className="divide-y divide-slate-100 p-4 space-y-4">
-                    {dateGroup.sessions.map(sessionBlock => (
-                      <div key={sessionBlock.sessionId} className="pt-2">
-                        {/* Session Time Header */}
-                        <div className="flex items-center gap-2 mb-3">
-                          <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 font-bold text-xs rounded-lg flex items-center gap-1.5 border border-indigo-100">
-                            <Clock className="w-3.5 h-3.5" />
-                            {sessionBlock.session
-                              ? `${sessionBlock.session.startTime} – ${sessionBlock.session.endTime}`
-                              : 'Waktu Belum Ditentukan'}
-                          </span>
-                          <span className="text-xs font-bold text-slate-700">
-                            {sessionBlock.session?.name || 'Sesi Kustom'}
-                          </span>
-                        </div>
+                        const sup1Obj = off.supervisor1Id ? lecturerMap.get(off.supervisor1Id) : (off.supervisorLecturerIds?.[0] ? lecturerMap.get(off.supervisorLecturerIds[0]) : null);
+                        const sup2Obj = off.supervisor2Id ? lecturerMap.get(off.supervisor2Id) : (off.supervisorLecturerIds?.[1] && off.supervisorLecturerIds[1] !== sup1Obj?.id ? lecturerMap.get(off.supervisorLecturerIds[1]) : null);
 
-                        {/* Exam Offerings Cards formatted strictly as per Requirement 17 */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {sessionBlock.offerings.map(off => {
-                            const assignedRooms = rooms.filter(r => off.roomIds.includes(r.id));
-                            const roomLabel = assignedRooms.map(r => r.name).join(', ') || 'Belum diplot';
+                        const lecturerNames = (off.lecturerIds || [])
+                          .map((id) => lecturerMap.get(id)?.name)
+                          .filter(Boolean);
 
-                            const supervisorNames = lecturers
-                              .filter(l => off.supervisorLecturerIds?.includes(l.id))
-                              .map(l => l.name)
-                              .join(', ') || 'Belum ditentukan';
+                        const offeringConflicts = offeringConflictMap.get(off.id) || [];
+                        const hasHardConflict = offeringConflicts.some(c => c.severity === 'high');
+                        const isSupervisorsComplete = Boolean(sup1Obj && sup2Obj);
+                        const isScheduled = Boolean(off.examDate && off.examSessionId && off.roomIds?.length);
 
-                            const lecturerNames = lecturers
-                              .filter(l => off.lecturerIds?.includes(l.id))
-                              .map(l => l.name)
-                              .join(', ') || '—';
+                        return (
+                          <tr key={off.id} className="hover:bg-slate-50/80 transition-colors">
+                            {/* Mata Kuliah */}
+                            <td className="p-3.5">
+                              <span className="font-bold text-slate-900 block">{off.courseName}</span>
+                              <span className="text-[11px] text-slate-500 font-mono">
+                                {off.courseCode} • Kurikulum {off.curriculumYear}
+                              </span>
+                            </td>
 
-                            return (
-                              <div
-                                key={off.id}
-                                className="p-4 bg-slate-50/80 hover:bg-slate-50 border border-slate-200 rounded-2xl transition-all space-y-2"
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div>
-                                    <h4 className="text-sm font-bold text-slate-900">
-                                      {off.courseName}{' '}
-                                      <span className="text-xs font-semibold text-slate-500">
-                                        ({off.courseCode})
-                                      </span>
-                                    </h4>
-                                    <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                                      {off.examType} • Semester {off.semester} • Seksi {off.sectionName || 'Utama'}{' '}
-                                      {off.kbkId ? `• ${off.kbkId.replace('kbk-', '').toUpperCase()}` : ''}
-                                    </p>
-                                  </div>
+                            {/* Semester */}
+                            <td className="p-3.5 font-bold text-slate-700">Sem {off.semester}</td>
 
-                                  {isAdmin && (
-                                    <button
-                                      onClick={() => setEditingOffering(off)}
-                                      className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-slate-200"
-                                      title="Edit Penjadwalan"
-                                    >
-                                      <Edit3 className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
+                            {/* Kelas (Section) */}
+                            <td className="p-3.5">
+                              <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md text-[11px]">
+                                Kelas {off.sectionName || 'A'}
+                              </span>
+                            </td>
+
+                            {/* Peserta */}
+                            <td className="p-3.5 font-bold text-slate-800">{off.studentCount} Mhs</td>
+
+                            {/* Dosen Pengampu */}
+                            <td className="p-3.5">
+                              {lecturerNames.length > 0 ? (
+                                <div className="space-y-0.5">
+                                  {lecturerNames.map((name, i) => (
+                                    <span key={i} className="block text-slate-700 text-[11px]">
+                                      {name}
+                                    </span>
+                                  ))}
                                 </div>
+                              ) : (
+                                <span className="text-slate-400 italic">Belum terdaftar</span>
+                              )}
+                            </td>
 
-                                <div className="text-xs text-slate-700 bg-white p-2.5 rounded-xl border border-slate-100/80 space-y-1 font-mono">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-slate-500">Peserta:</span>
-                                    <span className="font-bold text-indigo-700">{off.studentCount} Mahasiswa</span>
-                                  </div>
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-slate-500">Ruang:</span>
-                                    <span className="font-bold text-slate-900">{roomLabel}</span>
-                                  </div>
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-slate-500">Pengawas:</span>
-                                    <span className="font-semibold text-slate-800 text-right">{supervisorNames}</span>
-                                  </div>
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-slate-500">Dosen Pengampu:</span>
-                                    <span className="text-slate-600 text-right">{lecturerNames}</span>
-                                  </div>
+                            {/* Tanggal & Sesi */}
+                            <td className="p-3.5">
+                              {off.examDate && sessionObj ? (
+                                <div>
+                                  <span className="font-bold text-slate-900 block">
+                                    {formatIndonesianDate(off.examDate)}
+                                  </span>
+                                  <span className="text-[11px] text-indigo-700 font-medium">
+                                    {sessionObj.name} ({sessionObj.startTime} – {sessionObj.endTime})
+                                  </span>
                                 </div>
+                              ) : (
+                                <span className="text-amber-600 italic">Belum diplot</span>
+                              )}
+                            </td>
+
+                            {/* Ruangan */}
+                            <td className="p-3.5">
+                              {roomObj ? (
+                                <div>
+                                  <span className="font-bold text-slate-800 block">{roomObj.name}</span>
+                                  <span
+                                    className={`text-[10px] block ${
+                                      isCapShort ? 'text-rose-600 font-bold' : 'text-slate-500'
+                                    }`}
+                                  >
+                                    Kapasitas: {roomObj.capacity} kursi {isCapShort && '(Kurang!)'}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 italic">Belum diplot</span>
+                              )}
+                            </td>
+
+                            {/* Pengawas 1 (Auto Dosen Pengampu) */}
+                            <td className="p-3.5">
+                              {sup1Obj ? (
+                                <div>
+                                  <span className="font-medium text-slate-900 block">{sup1Obj.name}</span>
+                                  <span className="text-[10px] text-indigo-600 font-bold">Auto Pengampu</span>
+                                </div>
+                              ) : (
+                                <span className="text-amber-600 italic text-[11px]">Belum Ada Pengampu</span>
+                              )}
+                            </td>
+
+                            {/* Pengawas 2 (Manual Admin) */}
+                            <td className="p-3.5">
+                              {sup2Obj ? (
+                                <div>
+                                  <span className="font-medium text-slate-900 block">{sup2Obj.name}</span>
+                                  <span className="text-[10px] text-slate-500 font-medium">Manual Admin</span>
+                                </div>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold">
+                                  <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                                  <span>Belum Diisi</span>
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Status */}
+                            <td className="p-3.5">
+                              {hasHardConflict ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 block text-center">
+                                  Bentrok
+                                </span>
+                              ) : !isScheduled ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 block text-center">
+                                  Belum Terjadwal
+                                </span>
+                              ) : !isSupervisorsComplete ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 block text-center">
+                                  Pengawas (1/2)
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 block text-center">
+                                  ✓ Lengkap (2/2)
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Aksi */}
+                            <td className="p-3.5 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  onClick={() => setEditingOffering(off)}
+                                  className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                                  title={isAdmin ? "Edit Penjadwalan & Pengawas" : "Lihat Detail Ujian"}
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
+                                {isAdmin && isScheduled && (
+                                  <button
+                                    onClick={() => handleClearSlot(off.id)}
+                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Kosongkan Slot Ujian"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
+
+      {/* 8. EDIT OFFERING MODAL (Requirement 16) */}
+      {editingOffering && (
+        <ExamOfferingEditModal
+          isOpen={Boolean(editingOffering)}
+          onClose={() => setEditingOffering(null)}
+          offering={editingOffering}
+          rooms={rooms}
+          sessions={sessions}
+          lecturers={lecturers}
+          availableDates={availableDates}
+          allOfferings={offerings}
+          onSave={handleSaveOffering}
+        />
       )}
 
-      {/* TAB 4: TERBITKAN & EKSPOR (PUBLISH) */}
-      {activeTab === 'publish' && (
-        <div className="space-y-6">
-          <div className="p-6 bg-white rounded-3xl border border-slate-200/80 shadow-2xs space-y-5">
-            <div>
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Share2 className="w-4 h-4 text-indigo-600" />
-                Status Publikasi & Ekspor Jadwal Ujian {examType}
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Tahun Akademik: <strong>{academicYear}</strong> • Semester: <strong>{academicTerm}</strong>
-              </p>
-            </div>
-
-            {/* Publication Card */}
-            <div
-              className={`p-5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
-                publishStatus.isPublished
-                  ? 'bg-emerald-50/60 border-emerald-200'
-                  : 'bg-amber-50/60 border-amber-200'
-              }`}
-            >
-              <div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`w-3 h-3 rounded-full ${
-                      publishStatus.isPublished ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
-                    }`}
-                  />
-                  <h4 className="text-sm font-bold text-slate-900">
-                    Status Jadwal: {publishStatus.isPublished ? 'TELAH DITERBITKAN' : 'STATUS DRAFT INTERNAL'}
-                  </h4>
-                </div>
-                <p className="text-xs text-slate-600 mt-1">
-                  {publishStatus.isPublished
-                    ? `Jadwal resmi dapat dilihat oleh mahasiswa dan pengawas sejak ${new Date(
-                        publishStatus.publishedAt || ''
-                      ).toLocaleString('id-ID')} (Diterbitkan oleh: ${publishStatus.publishedBy || 'Admin'}).`
-                    : 'Jadwal masih berstatus draft dan belum dapat diakses pada portal Mahasiswa/Dosen.'}
-                </p>
-              </div>
-
-              {isAdmin && (
-                <button
-                  onClick={handleTogglePublish}
-                  className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-xs transition-colors flex items-center gap-2 shrink-0 ${
-                    publishStatus.isPublished
-                      ? 'bg-rose-600 hover:bg-rose-700'
-                      : 'bg-emerald-600 hover:bg-emerald-700'
-                  }`}
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  {publishStatus.isPublished ? 'Batalkan Publikasi' : `Terbitkan Jadwal ${examType}`}
-                </button>
-              )}
-            </div>
-
-            {/* Statistics Summary */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                <span className="text-[11px] font-semibold text-slate-400 block">Total Ujian Diplot</span>
-                <span className="text-lg font-black text-slate-900 mt-0.5 block">{offerings.length} Seksi</span>
-              </div>
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                <span className="text-[11px] font-semibold text-slate-400 block">Total Peserta Terdaftar</span>
-                <span className="text-lg font-black text-indigo-700 mt-0.5 block">
-                  {offerings.reduce((sum, o) => sum + (o.studentCount || 0), 0)} Mhs
-                </span>
-              </div>
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                <span className="text-[11px] font-semibold text-slate-400 block">Sesi Ujian Aktif</span>
-                <span className="text-lg font-black text-slate-900 mt-0.5 block">
-                  {sessions.filter(s => s.isActive).length} Sesi/Hari
-                </span>
-              </div>
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                <span className="text-[11px] font-semibold text-slate-400 block">Konflik Terdeteksi</span>
-                <span
-                  className={`text-lg font-black mt-0.5 block ${
-                    conflicts.length > 0 ? 'text-rose-600' : 'text-emerald-600'
-                  }`}
-                >
-                  {conflicts.length} Kasus
-                </span>
-              </div>
-            </div>
-
-            {/* Export Actions */}
-            <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => {
-                  window.print();
-                }}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Cetak / Ekspor PDF
-              </button>
-
-              <button
-                onClick={() => {
-                  // CSV download
-                  const headers = ['Tanggal', 'Sesi', 'Kode MK', 'Mata Kuliah', 'Semester', 'Seksi', 'Peserta', 'Ruangan', 'Pengawas'];
-                  const rows = offerings.map(o => {
-                    const roomName = rooms.filter(r => o.roomIds.includes(r.id)).map(r => r.name).join('; ');
-                    const supNames = lecturers.filter(l => o.supervisorLecturerIds?.includes(l.id)).map(l => l.name).join('; ');
-                    return [
-                      o.examDate || '',
-                      o.examSessionId || '',
-                      o.courseCode,
-                      o.courseName,
-                      o.semester,
-                      o.sectionName || 'A',
-                      o.studentCount,
-                      roomName,
-                      supNames,
-                    ];
-                  });
-
-                  const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.map(val => `"${val}"`).join(','))].join('\n');
-                  const encodedUri = encodeURI(csvContent);
-                  const link = document.createElement('a');
-                  link.setAttribute('href', encodedUri);
-                  link.setAttribute('download', `Jadwal_${examType}_${academicYear.replace('/', '-')}_${academicTerm}.csv`);
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  showToast('success', 'Unduhan Dimulai', `Berkas CSV Jadwal ${examType} berhasil diunduh.`);
-                }}
-                className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
-              >
-                <Download className="w-3.5 h-3.5 text-slate-500" />
-                Unduh CSV / Spreadsheet
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* 9. SESSION & EXAM CONFIG MODAL */}
+      {isSessionModalOpen && (
+        <ExamSessionModal
+          isOpen={isSessionModalOpen}
+          onClose={() => {
+            setIsSessionModalOpen(false);
+            setSessions(StorageService.getExamSessions());
+          }}
+          sessions={sessions}
+          onSaveSessions={(updatedSessions) => {
+            setSessions(updatedSessions);
+            StorageService.saveExamSessions(updatedSessions);
+          }}
+          onResetDefault={() => {
+            const defSessions = StorageService.resetDefaultExamSessions();
+            setSessions(defSessions);
+          }}
+        />
       )}
 
-      {/* Modals */}
-      <ExamSessionModal
-        isOpen={isSessionModalOpen}
-        onClose={() => setIsSessionModalOpen(false)}
-        sessions={sessions}
-        onSaveSessions={handleSaveSessions}
-        onResetDefault={handleResetDefaultSessions}
-      />
-
-      <ExamOfferingEditModal
-        isOpen={Boolean(editingOffering)}
-        onClose={() => setEditingOffering(null)}
-        offering={editingOffering}
-        rooms={rooms}
-        sessions={sessions}
-        lecturers={lecturers}
-        availableDates={availableDates}
-        onSave={handleSaveOfferingModal}
-      />
-
-      <ExamHistoryModal
-        isOpen={isHistoryModalOpen}
-        onClose={() => setIsHistoryModalOpen(false)}
-        versions={versions}
-        examType={examType}
-        academicYear={academicYear}
-        academicTerm={academicTerm}
-        onRestoreVersion={handleRestoreVersion}
-      />
-
-      <ExamChangeLogModal
-        isOpen={isChangeLogModalOpen}
-        onClose={() => setIsChangeLogModalOpen(false)}
-        logs={changeLogs}
-        examType={examType}
-      />
+      {/* 10. EXAM HISTORY MODAL */}
+      {isHistoryModalOpen && (
+        <ExamHistoryModal
+          isOpen={isHistoryModalOpen}
+          onClose={() => setIsHistoryModalOpen(false)}
+          versions={versions}
+          examType={examType}
+          academicYear={academicYear}
+          academicTerm={academicTerm}
+          onRestoreVersion={(version) => {
+            const restoredOfferings = version.offerings;
+            setOfferings(restoredOfferings);
+            StorageService.saveExamOfferings(restoredOfferings, examType, academicYear, academicTerm);
+            setIsHistoryModalOpen(false);
+            showToast('success', 'Versi Dipulihkan', `Jadwal ujian versi "${version.versionName}" berhasil dipulihkan.`);
+          }}
+        />
+      )}
+      </div>
     </div>
   );
 };
-
-export default ExamSchedulingPage;

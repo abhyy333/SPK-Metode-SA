@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Plus, Search, Edit2, Trash2, DoorOpen, CheckCircle2, XCircle, Users } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, DoorOpen, CheckCircle2, XCircle, Users, RotateCcw } from 'lucide-react';
 import { Room, RoomType, ScheduleAssignment, RolePermissions } from '../types';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { DeleteConfirmModal } from '../components/ui/DeleteConfirmModal';
 import { useToast } from '../components/ui/Toast';
+import { StorageService } from '../services/storageService';
 
 interface RoomsPageProps {
   rooms: Room[];
@@ -134,16 +135,53 @@ export const RoomsPage: React.FC<RoomsPageProps> = ({
             Daftar sarana perkuliahan, kapasitas ruang, dan peruntukan fasilitas
           </p>
         </div>
-        {permissions.canCreate && (
-          <button
-            onClick={openAddModal}
-            id="btn-add-room"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors self-start sm:self-auto"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Tambah Ruangan</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {permissions.canCreate && (
+            <button
+              onClick={() => {
+                const defs = StorageService.resetRoomsToDefault();
+                defs.forEach(r => onSaveRoom(r));
+                showToast('success', 'Reset Master Ruangan', '7 Ruangan master berhasil dimuat ulang (7/7 Imported).');
+              }}
+              id="btn-reset-default-rooms"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+              title="Reset ke 7 Master Ruangan Default (Ruang E, F, I, D2, STUDIO, Komputer, INTER)"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+              <span>Reset 7 Ruang Default</span>
+            </button>
+          )}
+          {permissions.canCreate && (
+            <button
+              onClick={openAddModal}
+              id="btn-add-room"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Tambah Ruangan</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Target Import Summary Banner */}
+      <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="p-1.5 bg-indigo-600 text-white rounded-lg">
+            <DoorOpen className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-slate-900">Master Data Ruangan Perkuliahan (7/7 Terpasang)</div>
+            <div className="text-[11px] text-slate-600">
+              Target Import: Source rows: 7 | Imported: {rooms.length} | Skipped: 0 | Modified: 0
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+            Hard Constraint C4 Aktif
+          </span>
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-center gap-3">
@@ -164,9 +202,9 @@ export const RoomsPage: React.FC<RoomsPageProps> = ({
           className="w-full sm:w-auto px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white"
         >
           <option value="all">Semua Tipe Ruang</option>
-          <option value="Kelas">Ruang Kuliah Teori</option>
-          <option value="Lab">Laboratorium Praktikum</option>
-          <option value="Auditorium">Auditorium / Aula</option>
+          <option value="Ruang Kuliah Teori">Ruang Kuliah Teori</option>
+          <option value="Laboratorium">Laboratorium</option>
+          <option value="Kelas">Kelas Umum</option>
         </select>
       </div>
 

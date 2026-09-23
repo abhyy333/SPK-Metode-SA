@@ -7,6 +7,7 @@ import {
   ScheduleGroup,
 } from '../types';
 import { StorageService } from './storageService';
+import { MasterLecturerService } from './masterLecturerService';
 import { createBalancedSections, MIN_STUDENTS_PER_CLASS, MAX_STUDENTS_PER_CLASS } from '../utils/sectionSplitting';
 
 export interface CoursePlanningItem {
@@ -319,26 +320,62 @@ export class CourseOfferingGeneratorService {
 
           const existingOffering = existingOfferingMap.get(`${course.id}__${secLetter}`) || existingOfferingMap.get(`${offeringId}__${secLetter}`);
 
-          // Determine assigned lecturer
+          // Master Lecturer Data Resolution (Strict Priority)
+          const termPeriod = (academicTerm || 'ganjil').toUpperCase() as 'GANJIL' | 'GENAP';
+          const masterLookup = MasterLecturerService.lookupLecturers(termPeriod, course.name, secLetter, sem, course.code);
+
           let assignedLecId: string | null = null;
           let assignedLecIds: string[] = [];
+          let lecNames: string[] = [];
+          let lecCodes: string[] = [];
 
-          if (existingOffering && existingOffering.assignedLecturerId) {
+          if (masterLookup.assignedLecturerNames.length > 0) {
+            lecNames = masterLookup.assignedLecturerNames;
+            masterLookup.assignedLecturerNames.forEach((name) => {
+              const normName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+              const found = allLecturers.find((l) => {
+                const lNorm = (l.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                return lNorm === normName || lNorm.includes(normName) || normName.includes(lNorm);
+              });
+              if (found) {
+                assignedLecIds.push(found.id);
+                lecCodes.push(found.code);
+              } else {
+                const synthId = `lec-mstr-${normName.substring(0, 16)}`;
+                assignedLecIds.push(synthId);
+                lecCodes.push(name.split(' ')[0]);
+              }
+            });
+
+            assignedLecId = assignedLecIds[0] || null;
+            // If coordinator tag present, ensure coordinator is primary
+            for (let i = 0; i < lecNames.length; i++) {
+              if (masterLookup.isCoordinatorMap[lecNames[i]]) {
+                assignedLecId = assignedLecIds[i];
+                break;
+              }
+            }
+          } else if (existingOffering && existingOffering.assignedLecturerId) {
             assignedLecId = existingOffering.assignedLecturerId;
             assignedLecIds = existingOffering.assignedLecturerIds || [existingOffering.assignedLecturerId];
+            lecNames = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.name || id);
+            lecCodes = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.code || id);
           } else if (existingOffering && existingOffering.lecturerId) {
             assignedLecId = existingOffering.lecturerId;
             assignedLecIds = existingOffering.lecturerIds || [existingOffering.lecturerId];
+            lecNames = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.name || id);
+            lecCodes = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.code || id);
           } else if (course.lecturerId) {
             assignedLecId = course.lecturerId;
             assignedLecIds = [course.lecturerId];
+            lecNames = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.name || id);
+            lecCodes = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.code || id);
           } else if (eligibleLecturerIds.length > 0) {
             assignedLecId = eligibleLecturerIds[secIndex % eligibleLecturerIds.length];
             assignedLecIds = [assignedLecId];
+            lecNames = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.name || id);
+            lecCodes = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.code || id);
           }
-
-          const lecNames = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.name || id);
-          const lecCodes = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.code || id);
 
           const requiredRoomType = (course.type === 'Praktikum' || this.isPracticumCourse(course))
             ? 'Laboratorium'
@@ -560,22 +597,57 @@ export class CourseOfferingGeneratorService {
           seenOfferingIds.add(offeringId);
 
           const existingOffering = existingOfferingMap.get(`${course.id}__${secLetter}`);
+          
+          // Master Lecturer Data Resolution (Strict Priority)
+          const termPeriod = (academicTerm || 'ganjil').toUpperCase() as 'GANJIL' | 'GENAP';
+          const masterLookup = MasterLecturerService.lookupLecturers(termPeriod, course.name, secLetter, sem, course.code);
+
           let assignedLecId: string | null = null;
           let assignedLecIds: string[] = [];
+          let lecNames: string[] = [];
+          let lecCodes: string[] = [];
 
-          if (existingOffering && existingOffering.lecturerId) {
+          if (masterLookup.assignedLecturerNames.length > 0) {
+            lecNames = masterLookup.assignedLecturerNames;
+            masterLookup.assignedLecturerNames.forEach((name) => {
+              const normName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+              const found = allLecturers.find((l) => {
+                const lNorm = (l.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                return lNorm === normName || lNorm.includes(normName) || normName.includes(lNorm);
+              });
+              if (found) {
+                assignedLecIds.push(found.id);
+                lecCodes.push(found.code);
+              } else {
+                const synthId = `lec-mstr-${normName.substring(0, 16)}`;
+                assignedLecIds.push(synthId);
+                lecCodes.push(name.split(' ')[0]);
+              }
+            });
+
+            assignedLecId = assignedLecIds[0] || null;
+            for (let i = 0; i < lecNames.length; i++) {
+              if (masterLookup.isCoordinatorMap[lecNames[i]]) {
+                assignedLecId = assignedLecIds[i];
+                break;
+              }
+            }
+          } else if (existingOffering && existingOffering.lecturerId) {
             assignedLecId = existingOffering.lecturerId;
             assignedLecIds = existingOffering.lecturerIds || [existingOffering.lecturerId];
+            lecNames = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.name || id);
+            lecCodes = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.code || id);
           } else if (course.lecturerId) {
             assignedLecId = course.lecturerId;
             assignedLecIds = [course.lecturerId];
+            lecNames = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.name || id);
+            lecCodes = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.code || id);
           } else if (eligibleLecturerIds.length > 0) {
             assignedLecId = eligibleLecturerIds[secIndex % eligibleLecturerIds.length];
             assignedLecIds = [assignedLecId];
+            lecNames = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.name || id);
+            lecCodes = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.code || id);
           }
-
-          const lecNames = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.name || id);
-          const lecCodes = assignedLecIds.map((id) => allLecturers.find((l) => l.id === id)?.code || id);
 
           const offering: CourseOffering = {
             id: offeringId,

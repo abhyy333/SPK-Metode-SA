@@ -85,7 +85,7 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
   });
   const [selectedLectureVersionId, setSelectedLectureVersionId] = useState<string>(() => {
     const active = StorageService.getActiveScheduleVersion();
-    return active?.id || lectureVersions[0]?.id || 'ver-lec-v3';
+    return active?.id || lectureVersions[0]?.id || '';
   });
 
   // Admin "Ganti Jadwal" Modal State
@@ -101,7 +101,7 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
   });
   const [selectedUtsVersionId, setSelectedUtsVersionId] = useState<string>(() => {
     const active = StorageService.getActiveExamVersion('UTS');
-    return active?.id || utsVersions[0]?.id || 'ex-ver-uts-2';
+    return active?.id || utsVersions[0]?.id || '';
   });
 
   const [uasVersions, setUasVersions] = useState<ExamVersion[]>(() => {
@@ -109,7 +109,7 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
   });
   const [selectedUasVersionId, setSelectedUasVersionId] = useState<string>(() => {
     const active = StorageService.getActiveExamVersion('UAS');
-    return active?.id || uasVersions[0]?.id || 'ex-ver-uas-1';
+    return active?.id || uasVersions[0]?.id || '';
   });
 
   // 3. Filters

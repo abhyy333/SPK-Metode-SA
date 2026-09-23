@@ -235,6 +235,10 @@ export const RAW_LECTURERS: RawLecturer[] = [
   { no: 50, code: 'ISN', name: 'Iwan Sumarlan, S.Si., M.Si.', nip: '198204152008121004', expertise: 'Fisika Terapan & Instrumentasi' },
   { no: 51, code: 'MSA', name: 'Maulida Septiyana, S.Si., M.Si.', nip: '198909182019032014', expertise: 'Kalkulus & Matematika Diskrit' },
   { no: 52, code: 'SUM', name: 'Maulida Septiyana, S.Si., M.Si.', nip: '198909182019032015', expertise: 'Probabilitas & Statistika Teknik' },
+  { no: 53, code: 'SSM', name: 'Siti Sumarti, M.Hum.', nip: '197508212005012001', expertise: 'Bahasa Inggris Teknik & Humaniora' },
+  { no: 54, code: 'BIW', name: 'Budi Irmawati, Skom, MT, PhD', nip: '197602182003122001', expertise: 'Ilmu Komputer & Sistem Informasi' },
+  { no: 55, code: 'IYS', name: 'Ika Yuliana Susilawati, SH., MH.', nip: '198407152010122002', expertise: 'Kewarganegaraan & Hukum' },
+  { no: 56, code: 'MBS', name: 'I Made Budi Suksmadana, ST., MT.', nip: '197411252000031001', expertise: 'Sistem Elektronika & Pengolahan Sinyal' },
 ];
 
 /**

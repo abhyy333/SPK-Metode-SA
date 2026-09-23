@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import {
   Package,
   Layers,
@@ -234,20 +233,15 @@ export const CurriculumPackagesPage: React.FC = () => {
   return (
     <div className="space-y-6" id="curriculum-packages-page">
       {/* Toast Notification */}
-      <AnimatePresence>
-        {notification && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed top-5 right-5 z-50 px-4 py-3 rounded-xl shadow-xl border bg-slate-900 text-white border-slate-700 flex items-center gap-3 text-sm font-medium"
-            id="package-toast"
-          >
-            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-            <span>{notification}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {notification && (
+        <div
+          className="fixed top-5 right-5 z-50 px-4 py-3 rounded-xl shadow-xl border bg-slate-900 text-white border-slate-700 flex items-center gap-3 text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-200"
+          id="package-toast"
+        >
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span>{notification}</span>
+        </div>
+      )}
 
       {/* Header Banner */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">

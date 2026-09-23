@@ -32,6 +32,7 @@ import { StorageService } from '../../services/storageService';
 import { DownloadScheduleButton } from '../../components/schedule/DownloadScheduleButton';
 import { ScheduleExportItem, ScheduleExportOptions } from '../../utils/scheduleExport';
 import { calculateCourseTiming } from '../../utils/sessionUtils';
+import { ScheduleBlockMatrix } from '../../components/schedule/ScheduleBlockMatrix';
 
 interface LecturerSchedulePageProps {
   lecturer: Lecturer;
@@ -323,17 +324,20 @@ export const LecturerSchedulePage: React.FC<LecturerSchedulePageProps> = ({
                 <button
                   type="button"
                   onClick={() => setViewMode('grid')}
-                  className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
-                    viewMode === 'grid' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+                  className={`px-3 py-1 rounded text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
+                    viewMode === 'grid' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'
                   }`}
                 >
-                  Matriks Tabel
+                  <span>Matriks Blok</span>
+                  <span className="text-[9px] px-1 py-0.2 rounded bg-indigo-100 text-indigo-800 font-extrabold">
+                    Utama
+                  </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setViewMode('list')}
-                  className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
-                    viewMode === 'list' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+                  className={`px-3 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
+                    viewMode === 'list' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-600'
                   }`}
                 >
                   Daftar Baris
@@ -344,119 +348,19 @@ export const LecturerSchedulePage: React.FC<LecturerSchedulePageProps> = ({
 
           {/* Grid View */}
           {viewMode === 'grid' ? (
-            <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse min-w-[700px]">
-                  <thead>
-                    <tr className="bg-slate-800 text-white font-bold border-b border-slate-700">
-                      <th className="p-3 w-28 text-center border-r border-slate-700">Waktu / Jam</th>
-                      {filteredDays.map((day) => (
-                        <th key={day} className="p-3 text-center border-r border-slate-700 last:border-r-0">
-                          {day}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {uniqueSlotIndices.map((slotIdx) => {
-                      const sampleSlot = timeslots.find((t) => t.slotIndex === slotIdx);
-                      const slotLabel = sampleSlot?.label || `Sesi ${slotIdx}`;
-
-                      return (
-                        <tr key={slotIdx} className="hover:bg-slate-50/40">
-                          <td className="p-3 text-center bg-slate-50/70 border-r border-slate-200 font-mono">
-                            <div className="font-bold text-slate-800 text-xs">{slotLabel}</div>
-                            <div className="text-[10px] text-slate-400 font-sans">Sesi {slotIdx}</div>
-                          </td>
-
-                          {filteredDays.map((day) => {
-                            const daySlot = timeslots.find((t) => t.day === day && t.slotIndex === slotIdx);
-                            const primaryAssignment = daySlot
-                              ? mySchedule.find((a) => a.timeslotId === daySlot.id)
-                              : null;
-
-                            const continuingAssignment =
-                              !primaryAssignment && daySlot
-                                ? mySchedule.find((a) => {
-                                    const ts = timeslotMap.get(a.timeslotId);
-                                    if (!ts || ts.day !== day) return false;
-                                    const crs = courseMap.get(a.courseId);
-                                    const courseSks = Math.max(1, Math.round(a.sks || crs?.sks || crs?.credits || 2));
-                                    const timing = calculateCourseTiming(ts, courseSks, timeslots);
-                                    return timing.occupiedSlotIds.includes(daySlot.id);
-                                  })
-                                : null;
-
-                            const crs = primaryAssignment ? courseMap.get(primaryAssignment.courseId) : null;
-                            const rm = primaryAssignment ? roomMap.get(primaryAssignment.roomId) : null;
-                            const cls = primaryAssignment ? classMap.get(primaryAssignment.classId) : null;
-                            const courseSks = primaryAssignment
-                              ? Math.max(1, Math.round(primaryAssignment.sks || crs?.sks || crs?.credits || 2))
-                              : 2;
-                            const timing =
-                              primaryAssignment && daySlot
-                                ? calculateCourseTiming(daySlot, courseSks, timeslots)
-                                : null;
-
-                            return (
-                              <td
-                                key={day}
-                                className="p-2 border-r border-slate-200 last:border-r-0 align-top min-w-[150px]"
-                              >
-                                {primaryAssignment && crs && timing ? (
-                                  <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-200 text-slate-900 shadow-xs space-y-1.5 transition-all hover:border-indigo-400">
-                                    <div className="flex items-center justify-between gap-1">
-                                      <span className="font-bold text-xs text-indigo-950">{crs.code}</span>
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-white text-indigo-700 border border-indigo-200">
-                                        Kelas {cls?.name || 'A'}
-                                      </span>
-                                    </div>
-                                    <div className="font-bold text-xs text-slate-900 line-clamp-2">{crs.name}</div>
-                                    <div className="flex items-center justify-between text-[11px] text-slate-600">
-                                      <div className="flex items-center gap-1">
-                                        <DoorOpen className="w-3 h-3 text-indigo-600" />
-                                        <span className="font-medium">{rm?.name || rm?.code}</span>
-                                      </div>
-                                      <span className="font-bold text-indigo-800 bg-indigo-100/80 px-1.5 py-0.5 rounded text-[10px]">
-                                        {courseSks} SKS
-                                      </span>
-                                    </div>
-                                    <div className="text-[10px] font-mono text-slate-500 pt-1 border-t border-indigo-100/70">
-                                      {timing.sessionRangeLabel} ({timing.timeRangeLabel})
-                                    </div>
-                                  </div>
-                                ) : continuingAssignment ? (
-                                  (() => {
-                                    const contCrs = courseMap.get(continuingAssignment.courseId);
-                                    const contRm = roomMap.get(continuingAssignment.roomId);
-                                    const contSks = Math.max(1, Math.round(continuingAssignment.sks || contCrs?.sks || contCrs?.credits || 2));
-                                    return (
-                                      <div className="p-2.5 rounded-lg bg-slate-50 border border-dashed border-indigo-200 text-slate-700 space-y-1">
-                                        <div className="text-[10px] font-semibold text-indigo-900 line-clamp-1">
-                                          ↳ Lanjutan: {contCrs?.name}
-                                        </div>
-                                        <div className="text-[9px] text-slate-500 flex items-center justify-between">
-                                          <span>{contRm?.code || '-'}</span>
-                                          <span className="font-bold">{contSks} SKS</span>
-                                        </div>
-                                      </div>
-                                    );
-                                  })()
-                                ) : (
-                                  <div className="h-14 flex items-center justify-center text-slate-300 text-[11px]">
-                                    -
-                                  </div>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <ScheduleBlockMatrix
+              assignments={mySchedule}
+              courses={courses}
+              lecturers={[lecturer]}
+              classes={classes}
+              rooms={rooms}
+              timeslots={timeslots}
+              userRole="lecturer"
+              readOnly={true}
+              defaultDay={selectedDay as any}
+              hideFilterToolbar={true}
+              academicYear={academicYear}
+            />
           ) : (
             /* List View */
             <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">

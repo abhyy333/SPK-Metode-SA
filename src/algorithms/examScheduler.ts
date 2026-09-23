@@ -81,18 +81,36 @@ export function detectExamConflicts(
       });
     }
 
-    // Check supervisor presence warning
-    if (offering.examDate && offering.examSessionId && (!offering.supervisorLecturerIds || offering.supervisorLecturerIds.length === 0)) {
-      conflicts.push({
-        id: `unassigned-supervisor-${offering.id}`,
-        type: 'UNASSIGNED_SUPERVISOR',
-        severity: 'low',
-        title: `Pengawas Belum Ditentukan: ${offering.courseName} ${offering.sectionName || ''}`,
-        description: `Pengawas ujian belum dialokasikan untuk mata kuliah ini.`,
-        examOfferingIds: [offering.id],
-        date: offering.examDate,
-        sessionId: offering.examSessionId,
-      });
+    // Check supervisor presence & complete count (Default requirement: 2 Pengawas)
+    // Pengawas 1 otomatis dari Dosen Pengampu, Pengawas 2 manual oleh Admin
+    const sup1Id = offering.supervisor1Id || offering.supervisorLecturerIds?.[0];
+    const sup2Id = offering.supervisor2Id || (offering.supervisorLecturerIds?.[1] && offering.supervisorLecturerIds[1] !== sup1Id ? offering.supervisorLecturerIds[1] : null);
+
+    if (offering.examDate && offering.examSessionId) {
+      if (!sup1Id) {
+        conflicts.push({
+          id: `unassigned-sup1-${offering.id}`,
+          type: 'UNASSIGNED_SUPERVISOR',
+          severity: 'low', // Strictly WARNING! BUKAN HARD CONFLICT
+          title: `Pengawas 1 Belum Ada: ${offering.courseName} ${offering.sectionName || ''}`,
+          description: `Dosen pengampu belum ditentukan pada jadwal kuliah sehingga Pengawas 1 masih kosong.`,
+          examOfferingIds: [offering.id],
+          date: offering.examDate,
+          sessionId: offering.examSessionId,
+        });
+      }
+      if (!sup2Id) {
+        conflicts.push({
+          id: `unassigned-sup2-${offering.id}`,
+          type: 'UNASSIGNED_SUPERVISOR',
+          severity: 'low', // Strictly WARNING! BUKAN HARD CONFLICT
+          title: `Pengawas 2 Belum Diisi: ${offering.courseName} ${offering.sectionName || ''}`,
+          description: `Pengawas 2 belum ditentukan oleh Admin.`,
+          examOfferingIds: [offering.id],
+          date: offering.examDate,
+          sessionId: offering.examSessionId,
+        });
+      }
     }
 
     // Group for slot-based overlap checks

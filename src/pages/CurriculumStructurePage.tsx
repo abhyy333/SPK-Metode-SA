@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import {
   BookOpen,
   Filter,
@@ -204,24 +203,19 @@ export const CurriculumStructurePage: React.FC = () => {
   return (
     <div className="space-y-6" id="curriculum-structure-page">
       {/* Toast Notification */}
-      <AnimatePresence>
-        {notification && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-lg shadow-lg border flex items-center gap-3 text-sm font-medium ${
-              notification.type === 'success'
-                ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                : 'bg-sky-50 border-sky-300 text-sky-900'
-            }`}
-            id="curriculum-toast"
-          >
-            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-            <span>{notification.message}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {notification && (
+        <div
+          className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-lg shadow-lg border flex items-center gap-3 text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-200 ${
+            notification.type === 'success'
+              ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+              : 'bg-sky-50 border-sky-300 text-sky-900'
+          }`}
+          id="curriculum-toast"
+        >
+          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+          <span>{notification.message}</span>
+        </div>
+      )}
 
       {/* Header Banner */}
       <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
@@ -717,31 +711,27 @@ export const CurriculumStructurePage: React.FC = () => {
       </div>
 
       {/* Admin Classification Correction Modal */}
-      <AnimatePresence>
-        {editingCourse && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs" id="edit-classification-modal">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-5"
-            >
-              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">
-                    Koreksi Klasifikasi Mata Kuliah
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    {editingCourse.code} - {editingCourse.name} ({editingCourse.sks} SKS, Semester {editingCourse.semester})
-                  </p>
-                </div>
-                <button
-                  onClick={() => setEditingCourse(null)}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+      {editingCourse && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150" id="edit-classification-modal">
+          <div
+            className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in zoom-in-95 duration-150"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  Koreksi Klasifikasi Mata Kuliah
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {editingCourse.code} - {editingCourse.name} ({editingCourse.sks} SKS, Semester {editingCourse.semester})
+                </p>
               </div>
+              <button
+                onClick={() => setEditingCourse(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
               <div className="space-y-4 text-sm">
                 {/* Kategori Wajib / Pilihan */}
@@ -879,10 +869,9 @@ export const CurriculumStructurePage: React.FC = () => {
                   Simpan Koreksi Admin
                 </button>
               </div>
-            </motion.div>
+            </div>
           </div>
         )}
-      </AnimatePresence>
     </div>
   );
 };

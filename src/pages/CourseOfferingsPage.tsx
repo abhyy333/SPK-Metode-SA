@@ -39,6 +39,7 @@ import {
 import { CourseOffering, Course, Lecturer, ClassGroup, Room, Timeslot, KBK, CurriculumPackage } from '../types';
 import { StorageService } from '../services/storageService';
 import { CourseOfferingGeneratorService, GenerationOptions, GenerationReport } from '../services/courseOfferingGeneratorService';
+import { MasterLecturerImportService } from '../services/masterLecturerImportService';
 import { SemesterPlanWizard } from '../components/offerings/SemesterPlanWizard';
 import { Modal } from '../components/ui/Modal';
 import { Badge } from '../components/ui/Badge';
@@ -157,6 +158,7 @@ export const CourseOfferingsPage: React.FC = () => {
           lecturerCode: primaryLec ? primaryLec.code : null,
           lecturerNames: assignedLecs.map((l) => l.name),
           lecturerCodes: assignedLecs.map((l) => l.code),
+          manualOverride: true,
           status: 'ready' as const,
         };
       }
@@ -450,14 +452,30 @@ export const CourseOfferingsPage: React.FC = () => {
                 />
               </div>
 
-              {/* Quick Action: Back to Planner */}
-              <button
-                onClick={() => setActiveTab('planner')}
-                className="px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-              >
-                <Plus className="w-3.5 h-3.5 text-indigo-600" />
-                <span>+ Susun / Tambah Offering Baru</span>
-              </button>
+              {/* Quick Action: Back to Planner & Master Sync */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const term = offerings[0]?.academicTerm || 'ganjil';
+                    const period = term === 'ganjil' ? 'GANJIL' : 'GENAP';
+                    const res = MasterLecturerImportService.syncToCourseOfferings(period);
+                    setOfferings(StorageService.getCourseOfferings());
+                    showToast('success', 'Sinkronisasi Selesai', `Berhasil menyinkronkan ${res.updatedCount} dari ${res.totalOfferings} offering dengan Master Dosen.`);
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Sinkronkan Dosen dari Master</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('planner')}
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                >
+                  <Plus className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>+ Susun / Tambah Offering Baru</span>
+                </button>
+              </div>
             </div>
 
             {/* Filter pills */}
@@ -647,27 +665,40 @@ export const CourseOfferingsPage: React.FC = () => {
                           {/* Lecturer Assignment */}
                           <td className="p-3">
                             {assignedLecturers.length > 0 ? (
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="space-y-0.5">
-                                  {assignedLecturers.map((lec) => (
-                                    <div key={lec.id} className="flex items-center gap-1.5">
-                                      <span className="font-semibold text-slate-800 text-xs">{lec.name}</span>
-                                      <span className="font-mono text-[10px] text-slate-400">({lec.code})</span>
-                                    </div>
-                                  ))}
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                    assignedLecturers.length > 1
+                                      ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                      : off.manualOverride
+                                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  }`}>
+                                    {assignedLecturers.length > 1 ? '2 Dosen dari Master' : off.manualOverride ? 'Diisi Manual' : 'Terisi dari Master'}
+                                  </span>
                                 </div>
-                                <button
-                                  onClick={() => openAssignModal(off)}
-                                  className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 text-[11px] font-bold transition-colors cursor-pointer shrink-0"
-                                >
-                                  Ganti
-                                </button>
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="space-y-0.5">
+                                    {assignedLecturers.map((lec) => (
+                                      <div key={lec.id} className="flex items-center gap-1.5">
+                                        <span className="font-semibold text-slate-800 text-xs">{lec.name}</span>
+                                        <span className="font-mono text-[10px] text-slate-400">({lec.code})</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <button
+                                    onClick={() => openAssignModal(off)}
+                                    className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 text-[11px] font-bold transition-colors cursor-pointer shrink-0"
+                                  >
+                                    Ganti
+                                  </button>
+                                </div>
                               </div>
                             ) : (
                               <div className="flex items-center justify-between gap-2">
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
                                   <UserX className="w-3 h-3" />
-                                  Belum Ditentukan
+                                  Belum Ada di Master
                                 </span>
                                 <button
                                   onClick={() => openAssignModal(off)}

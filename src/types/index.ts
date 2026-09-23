@@ -5,7 +5,7 @@ export type TimePreference = 'Pagi' | 'Siang' | 'Sore' | 'Fleksibel';
 export type CourseCategory = 'Wajib' | 'Pilihan';
 export type CourseType = 'Wajib' | 'Pilihan' | 'Praktikum';
 
-export type RoomType = 'Kelas' | 'Laboratorium' | 'Ruang Seminar';
+export type RoomType = 'Ruang Kuliah Teori' | 'Laboratorium' | 'Kelas' | 'Ruang Seminar' | string;
 
 export type ConflictSeverity = 'high' | 'medium' | 'low';
 
@@ -87,6 +87,7 @@ export interface Course {
   category?: CourseCategory; // 'Wajib' if code starts with FBS/MPS/MWU, else 'Pilihan'
   subCategory?: string; // 'Wajib Universitas' | 'Wajib Fakultas' | 'Wajib Prodi' | 'Wajib KBK' | 'Pilihan KBK' | 'Pilihan Bebas'
   type?: CourseType; // backwards compatibility
+  kbkId?: string; // Legacy or primary single KBK ID
   kbkIds?: string[]; // IDs of KBK: ['kbk-komputer'], ['kbk-stl'], ['kbk-elektronika-komunikasi']
   packageType?: PackageType; // 'common' | 'kbk' | 'elective' | 'cross-kbk'
   classificationStatus?: ClassificationStatus; // 'verified' | 'needs-review'
@@ -377,6 +378,7 @@ export interface CourseOffering {
   lecturerIds: string[]; // Satu kelas dapat diampu oleh lebih dari satu dosen
   lecturerId?: string | null; // Primary lecturer untuk kompatibilitas
   lecturerNames?: string[];
+  manualOverride?: boolean;
   lecturerName?: string | null;
   lecturerCodes?: string[];
   lecturerCode?: string | null;
@@ -1030,6 +1032,7 @@ export interface ExamSession {
 
 export interface ExamOffering {
   id: string;
+  sourceCourseOfferingId?: string; // Reference to source CourseOffering from lecture schedule
   examType: ExamType;
   academicYear: string; // e.g. '2026/2027'
   academicTerm: AcademicTerm; // 'Ganjil' | 'Genap'
@@ -1048,7 +1051,9 @@ export interface ExamOffering {
   examSessionId?: string;
   roomIds: string[]; // Master Room IDs
 
-  supervisorLecturerIds: string[]; // Pengawas Ujian (Admin choice)
+  supervisor1Id?: string | null; // Auto dari Dosen Pengampu courseOffering.lecturerIds[0]
+  supervisor2Id?: string | null; // Manual diinput oleh Admin
+  supervisorLecturerIds: string[]; // Pengawas Ujian ([supervisor1Id, supervisor2Id].filter(Boolean))
   lecturerIds: string[]; // Dosen Pengampu (for display)
 
   durationMinutes?: number; // Configurable duration per exam
@@ -1123,6 +1128,17 @@ export interface ExamConfig {
   examStartDate: string; // '2026-10-12'
   examEndDate: string; // '2026-10-23'
   excludeWeekends: boolean;
+  activeDays?: string[];
+}
+
+export interface ScheduleDraftMetadata {
+  activeStep?: string;
+  scheduleCreationMode: 'template' | 'custom' | null;
+  templateType?: 'ganjil' | 'genap';
+  plannedCourses?: Record<string, any>;
+  studentInputMap?: Record<string, string>;
+  selectedCourseIds: string[];
+  updatedAt?: string;
 }
 
 

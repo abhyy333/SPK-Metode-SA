@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import {
   Calendar,
   Filter,
@@ -12,6 +12,7 @@ import {
   FileSpreadsheet,
   Printer,
   ChevronRight,
+  ChevronLeft,
   Search,
   CheckCircle2,
   Sparkles,
@@ -85,6 +86,252 @@ interface TimetablePageProps {
 
 const ALL_DAYS: DayOfWeek[] = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
+const ClusterSlider: React.FC<{
+  cluster: any[];
+  rowHeight: number;
+  courseMap: Map<string, Course>;
+  roomMap: Map<string, Room>;
+  getAssignmentOfferingMeta: (a: ScheduleAssignment) => any;
+  getAssignedLecturers: (a: ScheduleAssignment) => Lecturer[];
+  handleOpenAssignment: (a: ScheduleAssignment, tab: any) => void;
+}> = ({
+  cluster,
+  rowHeight,
+  courseMap,
+  roomMap,
+  getAssignmentOfferingMeta,
+  getAssignedLecturers,
+  handleOpenAssignment,
+}) => {
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const minStart = Math.min(...cluster.map((item) => item.startIndex));
+  const maxEnd = Math.max(...cluster.map((item) => item.startIndex + item.span));
+  const topPx = minStart * rowHeight;
+  const heightPx = Math.max(72, (maxEnd - minStart) * rowHeight - 4);
+
+  const scrollByAmount = (direction: 'left' | 'right') => {
+    if (!scrollRef.current) return;
+    const cardWidth = 260;
+    const newScroll = scrollRef.current.scrollLeft + (direction === 'left' ? -cardWidth : cardWidth);
+    scrollRef.current.scrollTo({ left: newScroll, behavior: 'smooth' });
+  };
+
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const scrollLeft = scrollRef.current.scrollLeft;
+    const cardWidth = scrollRef.current.clientWidth || 250;
+    const index = Math.round(scrollLeft / cardWidth);
+    setActiveIndex(Math.min(cluster.length - 1, Math.max(0, index)));
+  };
+
+  if (cluster.length === 1) {
+    const item = cluster[0];
+    const a = item.assignment;
+    const course = courseMap.get(a.courseId);
+    const room = roomMap.get(a.roomId);
+    const meta = getAssignmentOfferingMeta(a);
+    const assignedLecs = getAssignedLecturers(a);
+    const isHard = item.isHardConflict;
+
+    return (
+      <div
+        onClick={() => handleOpenAssignment(a, 'detail')}
+        style={{
+          top: `${item.startIndex * rowHeight + 2}px`,
+          height: `${item.span * rowHeight - 4}px`,
+          left: '4px',
+          right: '4px',
+        }}
+        className={`absolute pointer-events-auto rounded-xl p-3 transition-all cursor-pointer flex flex-col justify-between overflow-hidden shadow-2xs border ${
+          isHard
+            ? 'bg-rose-50/95 border-rose-400 hover:border-rose-500 shadow-sm ring-1 ring-rose-300'
+            : item.conflictItems.length > 0
+            ? 'bg-amber-50/95 border-amber-300 hover:border-amber-400'
+            : 'bg-white border-slate-200 hover:border-indigo-400 hover:shadow-xs'
+        }`}
+      >
+        <div className="min-w-0 overflow-hidden mb-1">
+          <div className="font-extrabold text-slate-900 text-xs sm:text-[13px] line-clamp-2 leading-snug">
+            {course?.name || 'Mata Kuliah'}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-1 mb-1 shrink-0 flex-wrap text-[10px]">
+          <div className="flex items-center gap-1 font-semibold text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+            <span>Sem {meta.semester}</span>
+            <span>•</span>
+            <span>Kls {meta.section}</span>
+            <span>•</span>
+            <span className="text-emerald-700 font-bold">{meta.sks} SKS</span>
+          </div>
+
+          {isHard ? (
+            <span className="inline-flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded bg-rose-200 text-rose-900 animate-pulse">
+              <ShieldAlert className="w-2.5 h-2.5" />
+              BENTROK
+            </span>
+          ) : item.conflictItems.length > 0 ? (
+            <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">
+              <AlertTriangle className="w-2.5 h-2.5" />
+              Perhatian
+            </span>
+          ) : null}
+        </div>
+
+        <div className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded shrink-0 my-0.5 flex items-center justify-between">
+          <span>{meta.timing.timeRangeLabel}</span>
+          <span className="text-[9px] text-slate-500 font-normal">{meta.timing.durationMinutes} mnt</span>
+        </div>
+
+        <div className="pt-1.5 border-t border-slate-100 text-[10px] text-slate-600 space-y-0.5 shrink-0">
+          <div className="flex items-center gap-1 truncate">
+            <Users className="w-3 h-3 text-slate-400 shrink-0" />
+            <span className="font-medium text-slate-800 truncate">
+              {assignedLecs.length > 0
+                ? assignedLecs.length === 1
+                  ? assignedLecs[0].name
+                  : `${assignedLecs[0].name} (+${assignedLecs.length - 1} Dosen)`
+                : 'Belum Ada Dosen'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between pt-0.5">
+            <span className="font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
+              {meta.studentCount} Mhs
+            </span>
+            <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
+              {room?.code || 'Ruang'}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        top: `${topPx + 2}px`,
+        height: `${heightPx}px`,
+        left: '4px',
+        right: '4px',
+      }}
+      className="absolute pointer-events-auto flex flex-col bg-slate-100/95 rounded-xl border border-indigo-200 shadow-sm p-1.5 group"
+    >
+      <div className="flex items-center justify-between pb-1 px-1 mb-1 border-b border-indigo-100 shrink-0">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-600 text-white">
+            {cluster.length} Paralel
+          </span>
+          <span className="text-[10px] font-semibold text-slate-600">
+            {cluster[0]?.assignment ? getAssignmentOfferingMeta(cluster[0].assignment).timing.timeRangeLabel : ''}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] font-mono font-bold text-slate-500 mr-1">
+            {activeIndex + 1} / {cluster.length}
+          </span>
+          <button
+            onClick={(e) => { e.stopPropagation(); scrollByAmount('left'); }}
+            className="w-5 h-5 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors shadow-2xs cursor-pointer"
+            title="Geser Kiri"
+          >
+            <ChevronLeft className="w-3 h-3" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); scrollByAmount('right'); }}
+            className="w-5 h-5 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors shadow-2xs cursor-pointer"
+            title="Geser Kanan"
+          >
+            <ChevronRight className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 flex gap-2 overflow-x-auto scrollbar-none snap-x snap-mandatory px-0.5"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        {cluster.map((item) => {
+          const a = item.assignment;
+          const course = courseMap.get(a.courseId);
+          const room = roomMap.get(a.roomId);
+          const meta = getAssignmentOfferingMeta(a);
+          const assignedLecs = getAssignedLecturers(a);
+          const isHard = item.isHardConflict;
+
+          return (
+            <div
+              key={a.id}
+              onClick={() => handleOpenAssignment(a, 'detail')}
+              style={{ minWidth: '240px', maxWidth: '260px' }}
+              className={`snap-start shrink-0 rounded-lg p-3 transition-all cursor-pointer flex flex-col justify-between bg-white border shadow-2xs ${
+                isHard
+                  ? 'border-rose-400 hover:border-rose-500 ring-1 ring-rose-200 bg-rose-50/90'
+                  : item.conflictItems.length > 0
+                  ? 'border-amber-300 hover:border-amber-400 bg-amber-50/90'
+                  : 'border-slate-200 hover:border-indigo-400 hover:shadow-xs'
+              }`}
+            >
+              <div className="min-w-0 overflow-hidden mb-1">
+                <div className="font-extrabold text-slate-900 text-xs line-clamp-2 leading-snug">
+                  {course?.name || 'Mata Kuliah'}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-1 mb-1 shrink-0 flex-wrap text-[10px]">
+                <div className="flex items-center gap-1 font-semibold text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+                  <span>Sem {meta.semester}</span>
+                  <span>•</span>
+                  <span>Kls {meta.section}</span>
+                  <span>•</span>
+                  <span className="text-emerald-700 font-bold">{meta.sks} SKS</span>
+                </div>
+
+                {isHard ? (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded bg-rose-200 text-rose-900">
+                    BENTROK
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded shrink-0 my-0.5 flex items-center justify-between">
+                <span>{meta.timing.timeRangeLabel}</span>
+                <span className="text-[9px] text-slate-500 font-normal">{meta.timing.durationMinutes} mnt</span>
+              </div>
+
+              <div className="pt-1.5 border-t border-slate-100 text-[10px] text-slate-600 space-y-0.5 shrink-0">
+                <div className="flex items-center gap-1 truncate">
+                  <Users className="w-3 h-3 text-slate-400 shrink-0" />
+                  <span className="font-medium text-slate-800 truncate">
+                    {assignedLecs.length > 0
+                      ? assignedLecs.length === 1
+                        ? assignedLecs[0].name
+                        : `${assignedLecs[0].name} (+${assignedLecs.length - 1} Dosen)`
+                      : 'Belum Ada Dosen'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between pt-0.5">
+                  <span className="font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
+                    {meta.studentCount} Mhs
+                  </span>
+                  <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
+                    {room?.code || 'Ruang'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 export const TimetablePage: React.FC<TimetablePageProps> = ({
   currentSchedule,
   courses,
@@ -113,24 +360,7 @@ export const TimetablePage: React.FC<TimetablePageProps> = ({
   const [selectedConflictFilter, setSelectedConflictFilter] = useState<'all' | 'bentrok' | 'perhatian' | 'aman'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'room' | 'list'>('grid');
   const [selectedDayForRoomView, setSelectedDayForRoomView] = useState<DayOfWeek>('Senin');
-
-  // Action Dialog State
-  const [selectedAssignment, setSelectedAssignment] = useState<ScheduleAssignment | null>(null);
-  const [dialogTab, setDialogTab] = useState<'detail' | 'recommendations' | 'manual' | 'swap'>('detail');
-  const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
-  const [isEditingLecturerInModal, setIsEditingLecturerInModal] = useState<boolean>(false);
-
-  // Lecturer Change State
-  const [isLecturerModalOpen, setIsLecturerModalOpen] = useState<boolean>(false);
-  const [lecturerTargetAssignment, setLecturerTargetAssignment] = useState<ScheduleAssignment | null>(null);
-  const [selectedLecturerIds, setSelectedLecturerIds] = useState<string[]>([]);
-  const [lecturerSearchQuery, setLecturerSearchQuery] = useState<string>('');
-  const [allowLecturerCollision, setAllowLecturerCollision] = useState<boolean>(false);
-
-  // Manual move selection state inside modal
-  const [manualTargetTimeslotId, setManualTargetTimeslotId] = useState<string>('');
-  const [manualTargetRoomId, setManualTargetRoomId] = useState<string>('');
-  const [showHardConflictWarningConfirm, setShowHardConflictWarningConfirm] = useState<boolean>(false);
+  const [mobileSelectedDay, setMobileSelectedDay] = useState<DayOfWeek>('Senin');
 
   // Course offerings for metadata lookup (semester, curriculum, KBK, etc.)
   const offerings = useMemo(() => StorageService.getCourseOfferings(), []);
@@ -180,23 +410,23 @@ export const TimetablePage: React.FC<TimetablePageProps> = ({
   }, [conflicts]);
 
   // Helper to determine status for each assignment
-  const getAssignmentStatus = (id: string): 'bentrok' | 'perhatian' | 'aman' => {
+  const getAssignmentStatus = useCallback((id: string): 'bentrok' | 'perhatian' | 'aman' => {
     if (hardConflictingIds.has(id)) return 'bentrok';
     if (softConflictingIds.has(id)) return 'perhatian';
     return 'aman';
-  };
+  }, [hardConflictingIds, softConflictingIds]);
 
   // Helper to get all assigned lecturers
-  const getAssignedLecturers = (assignment: ScheduleAssignment): Lecturer[] => {
+  const getAssignedLecturers = useCallback((assignment: ScheduleAssignment): Lecturer[] => {
     const ids = assignment.lecturerIds && assignment.lecturerIds.length > 0
       ? assignment.lecturerIds
       : assignment.lecturerId ? [assignment.lecturerId] : [];
 
     return ids.map((id) => lecturerMap.get(id)).filter(Boolean) as Lecturer[];
-  };
+  }, [lecturerMap]);
 
   // Helper to get Course Offering metadata
-  const getAssignmentOfferingMeta = (assignment: ScheduleAssignment) => {
+  const getAssignmentOfferingMeta = useCallback((assignment: ScheduleAssignment) => {
     const off = assignment.courseOfferingId ? offeringMap.get(assignment.courseOfferingId) : null;
     const course = courseMap.get(assignment.courseId);
 
@@ -219,7 +449,94 @@ export const TimetablePage: React.FC<TimetablePageProps> = ({
       timing,
       isPracticum: off?.isPracticum || course?.type === 'Praktikum',
     };
-  };
+  }, [offeringMap, courseMap, timeslotMap, timeslots]);
+
+  const standardPeriods = useMemo(() => {
+    const seninSlots = timeslots
+      .filter((t) => t.day === 'Senin' && t.isActive)
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+    if (seninSlots.length > 0) return seninSlots;
+    return timeslots.filter((t) => t.isActive).slice(0, 12);
+  }, [timeslots]);
+
+  const computeDayClusters = useCallback((assignments: ScheduleAssignment[], dayTimeslots: Timeslot[]) => {
+    const slotIndexMap = new Map<string, number>();
+    dayTimeslots.forEach((ts, idx) => {
+      slotIndexMap.set(ts.id, idx);
+    });
+
+    const rowHeight = 72; // px per session row
+
+    const mapped = assignments.map((a) => {
+      const meta = getAssignmentOfferingMeta(a);
+      const ts = timeslotMap.get(a.timeslotId);
+      let startIndex = ts ? (slotIndexMap.get(ts.id) ?? 0) : 0;
+      const span = Math.max(1, meta.sks);
+
+      const [sH, sM] = meta.timing.startTime.split(':').map(Number);
+      const [eH, eM] = meta.timing.endTime.split(':').map(Number);
+      const startTimeMin = sH * 60 + sM;
+      const endTimeMin = eH * 60 + eM;
+
+      return {
+        assignment: a,
+        startIndex,
+        span,
+        startTimeMin,
+        endTimeMin,
+        isHardConflict: hardConflictingIds.has(a.id),
+        conflictItems: conflictItemMap.get(a.id) || [],
+      };
+    });
+
+    mapped.sort((a, b) => {
+      if (a.startTimeMin !== b.startTimeMin) return a.startTimeMin - b.startTimeMin;
+      return (b.endTimeMin - b.startTimeMin) - (a.endTimeMin - a.startTimeMin);
+    });
+
+    let clusters: typeof mapped[] = [];
+    let currentCluster: typeof mapped = [];
+    let clusterMaxEnd = -1;
+
+    mapped.forEach((item) => {
+      if (currentCluster.length === 0) {
+        currentCluster.push(item);
+        clusterMaxEnd = item.endTimeMin;
+      } else {
+        if (item.startTimeMin < clusterMaxEnd) {
+          currentCluster.push(item);
+          clusterMaxEnd = Math.max(clusterMaxEnd, item.endTimeMin);
+        } else {
+          clusters.push(currentCluster);
+          currentCluster = [item];
+          clusterMaxEnd = item.endTimeMin;
+        }
+      }
+    });
+    if (currentCluster.length > 0) {
+      clusters.push(currentCluster);
+    }
+
+    return clusters;
+  }, [getAssignmentOfferingMeta, timeslotMap, hardConflictingIds, conflictItemMap]);
+
+  // Action Dialog State
+  const [selectedAssignment, setSelectedAssignment] = useState<ScheduleAssignment | null>(null);
+  const [dialogTab, setDialogTab] = useState<'detail' | 'recommendations' | 'manual' | 'swap'>('detail');
+  const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
+  const [isEditingLecturerInModal, setIsEditingLecturerInModal] = useState<boolean>(false);
+
+  // Lecturer Change State
+  const [isLecturerModalOpen, setIsLecturerModalOpen] = useState<boolean>(false);
+  const [lecturerTargetAssignment, setLecturerTargetAssignment] = useState<ScheduleAssignment | null>(null);
+  const [selectedLecturerIds, setSelectedLecturerIds] = useState<string[]>([]);
+  const [lecturerSearchQuery, setLecturerSearchQuery] = useState<string>('');
+  const [allowLecturerCollision, setAllowLecturerCollision] = useState<boolean>(false);
+
+  // Manual move selection state inside modal
+  const [manualTargetTimeslotId, setManualTargetTimeslotId] = useState<string>('');
+  const [manualTargetRoomId, setManualTargetRoomId] = useState<string>('');
+  const [showHardConflictWarningConfirm, setShowHardConflictWarningConfirm] = useState<boolean>(false);
 
   // Filtered schedule
   const filteredAssignments = useMemo(() => {
@@ -911,221 +1228,125 @@ export const TimetablePage: React.FC<TimetablePageProps> = ({
 
       {/* VIEW 1: Matriks Hari (Grid View) */}
       {viewMode === 'grid' && (
-        <div className="space-y-6">
-          {activeDays.map((day) => {
-            const dayTimeslots = timeslots
-              .filter((t) => t.day === day && t.isActive)
-              .sort((a, b) => a.startTime.localeCompare(b.startTime));
-
-            const dayAssignments = filteredAssignments.filter((a) => {
-              const ts = timeslotMap.get(a.timeslotId);
-              return ts?.day === day;
-            });
-
-            return (
-              <div
-                key={day}
-                className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden"
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          {/* Mobile Day Selector Tabs */}
+          <div className="flex sm:hidden overflow-x-auto bg-slate-50 p-2 border-b border-slate-200 gap-1">
+            {activeDays.map((day) => (
+              <button
+                key={`mob-tab-${day}`}
+                onClick={() => setMobileSelectedDay(day)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                  mobileSelectedDay === day
+                    ? 'bg-indigo-600 text-white shadow-2xs'
+                    : 'bg-white text-slate-700 border border-slate-200'
+                }`}
               >
-                {/* Day Header Banner */}
-                <div className="bg-slate-50/90 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-indigo-600" />
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">{day}</h3>
-                  </div>
-                  <span className="text-xs font-semibold text-slate-600 bg-white border border-slate-200 px-2.5 py-0.5 rounded-lg">
-                    {dayAssignments.length} Mata Kuliah Terjadwal
-                  </span>
+                {day}
+              </button>
+            ))}
+          </div>
+
+          {/* Matrix Container */}
+          <div className="overflow-x-auto">
+            <div className="min-w-[850px] sm:min-w-[1100px] flex flex-col relative">
+              {/* Header Row: Days */}
+              <div className="flex border-b border-slate-200 bg-slate-50/95 sticky top-0 z-20 backdrop-blur">
+                {/* Sticky Session Header Column */}
+                <div className="w-28 sm:w-36 shrink-0 p-3.5 border-r border-slate-200 text-center font-bold text-xs text-slate-700 uppercase tracking-wider flex items-center justify-center bg-slate-100/95 sticky left-0 z-30">
+                  Sesi / Jam
                 </div>
-
-                {/* Timeslots Columns */}
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3.5">
-                  {dayTimeslots.map((ts) => {
-                    const slotAssignments = dayAssignments.filter((a) => a.timeslotId === ts.id);
-                    const continuingAssignments = dayAssignments.filter((a) => {
-                      if (a.timeslotId === ts.id) return false;
-                      const meta = getAssignmentOfferingMeta(a);
-                      return meta.timing.occupiedSlotIds.includes(ts.id);
-                    });
-
-                    return (
-                      <div
-                        key={ts.id}
-                        className="bg-slate-50/50 rounded-xl border border-slate-200/80 p-2.5 flex flex-col min-h-[220px]"
-                      >
-                        {/* Slot Header */}
-                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200">
-                          <div className="flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5 text-indigo-600" />
-                            <span className="text-xs font-bold text-slate-800 font-mono">{ts.label}</span>
-                          </div>
-                          <span className="text-[10px] text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded font-semibold">
-                            {getSessionShortLabel(ts)}
-                          </span>
-                        </div>
-
-                        {/* Cards in this slot */}
-                        <div className="space-y-2 flex-1">
-                          {slotAssignments.length === 0 && continuingAssignments.length === 0 ? (
-                            <div className="h-full flex items-center justify-center text-[11px] text-slate-400 py-6 border border-dashed border-slate-200 rounded-lg">
-                              Kosong (Tersedia)
-                            </div>
-                          ) : (
-                            <>
-                              {slotAssignments.map((a) => {
-                                const course = courseMap.get(a.courseId);
-                                const room = roomMap.get(a.roomId);
-                                const cls = classMap.get(a.classId);
-                                const status = getAssignmentStatus(a.id);
-                                const assignedLecs = getAssignedLecturers(a);
-                                const meta = getAssignmentOfferingMeta(a);
-                                const specificConflicts = conflictItemMap.get(a.id) || [];
-
-                                return (
-                                  <div
-                                    key={a.id}
-                                    onClick={() => handleOpenAssignment(a, 'detail')}
-                                    className={`p-3 rounded-xl border transition-all cursor-pointer text-left relative group ${
-                                      status === 'bentrok'
-                                        ? 'bg-rose-50/95 border-rose-300 hover:border-rose-400 shadow-2xs'
-                                        : status === 'perhatian'
-                                        ? 'bg-amber-50/95 border-amber-300 hover:border-amber-400 shadow-2xs'
-                                        : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-xs'
-                                    }`}
-                                  >
-                                    {/* Badges Strip: Semester, Kurikulum, KBK, SKS, Status */}
-                                    <div className="flex items-center justify-between gap-1 mb-1.5 flex-wrap">
-                                      <div className="flex items-center gap-1 flex-wrap">
-                                        <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800">
-                                          S{meta.semester}
-                                        </span>
-                                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
-                                          Kur.{meta.curriculumYear}
-                                        </span>
-                                        {meta.kbkId && (
-                                          <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">
-                                            {meta.kbkId === 'kbk-stl' ? 'STL' : meta.kbkId === 'kbk-komputer' ? 'KOM' : 'ELKOM'}
-                                          </span>
-                                        )}
-                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700">
-                                          Kls {meta.section}
-                                        </span>
-                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                          {meta.sks} SKS
-                                        </span>
-                                      </div>
-
-                                      {status === 'bentrok' ? (
-                                        <Badge variant="danger" size="sm">
-                                          <ShieldAlert className="w-2.5 h-2.5 animate-pulse" />
-                                          BENTROK
-                                        </Badge>
-                                      ) : status === 'perhatian' ? (
-                                        <Badge variant="warning" size="sm">
-                                          <AlertTriangle className="w-2.5 h-2.5" />
-                                          Perhatian
-                                        </Badge>
-                                      ) : (
-                                        <Badge variant="success" size="sm">
-                                          AMAN
-                                        </Badge>
-                                      )}
-                                    </div>
-
-                                    {/* Course Name & Code */}
-                                    <div className="font-bold text-slate-900 text-xs line-clamp-2 leading-snug">
-                                      {course?.name || 'Mata Kuliah'}
-                                    </div>
-                                    <div className="text-[11px] font-mono font-medium text-slate-500 tracking-tight mt-0.5">
-                                      {course?.code || a.courseId}
-                                    </div>
-
-                                    {/* SKS Duration & Sessions */}
-                                    <div className="mt-1.5 text-[10px] text-slate-600 bg-slate-50 p-1.5 rounded border border-slate-150 flex items-center justify-between">
-                                      <span className="font-semibold text-slate-800">{meta.timing.sessionRangeLabel}</span>
-                                      <span className="font-mono text-indigo-700 font-bold">{meta.timing.timeRangeLabel} ({meta.timing.durationMinutes} mnt)</span>
-                                    </div>
-
-                                    {/* Lecturer & Room Details */}
-                                    <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] text-slate-600 space-y-1">
-                                      <div className="flex items-start gap-1">
-                                        <Users className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                                        <div className="text-[11px] leading-tight line-clamp-1">
-                                          {assignedLecs.length > 0 ? (
-                                            <span className="font-medium text-slate-800">
-                                              {assignedLecs.map((l) => l.name).join(', ')}
-                                            </span>
-                                          ) : (
-                                            <span className="text-amber-700 font-semibold italic">
-                                              Belum Ada Dosen
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-
-                                      <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
-                                        <span className="font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
-                                          {meta.studentCount} Mhs
-                                        </span>
-                                        <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
-                                          {room?.code}
-                                        </span>
-                                      </div>
-                                    </div>
-
-                                    {/* Conflict warning preview badge */}
-                                    {specificConflicts.length > 0 && (
-                                      <div className="mt-2 text-[10px] text-rose-700 font-medium bg-rose-100/80 px-2 py-1 rounded-md line-clamp-1">
-                                        {specificConflicts[0].description}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-
-                              {/* Multi-Session Continuation Cards */}
-                              {continuingAssignments.map((a) => {
-                                const course = courseMap.get(a.courseId);
-                                const room = roomMap.get(a.roomId);
-                                const meta = getAssignmentOfferingMeta(a);
-                                const status = getAssignmentStatus(a.id);
-                                return (
-                                  <div
-                                    key={`cont-${a.id}-${ts.id}`}
-                                    onClick={() => handleOpenAssignment(a, 'detail')}
-                                    className={`p-2.5 rounded-xl border border-dashed transition-all cursor-pointer text-left ${
-                                      status === 'bentrok'
-                                        ? 'bg-rose-50/80 border-rose-300 hover:border-rose-400'
-                                        : 'bg-indigo-50/50 border-indigo-200 hover:bg-indigo-100/60'
-                                    }`}
-                                  >
-                                    <div className="flex items-center justify-between gap-1 text-[10px]">
-                                      <span className="font-semibold text-indigo-950 truncate">
-                                        ↳ Lanjutan: {course?.name}
-                                      </span>
-                                      <span className="font-bold text-indigo-700 shrink-0">
-                                        {meta.sks} SKS
-                                      </span>
-                                    </div>
-                                    <div className="text-[10px] text-slate-500 mt-1 flex items-center justify-between">
-                                      <span>Mulai: {meta.timing.sessionRangeLabel}</span>
-                                      <span className="font-mono font-bold text-slate-700 bg-white/80 px-1 py-0.5 rounded border border-slate-200">
-                                        {room?.code}
-                                      </span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </>
-                          )}
-                        </div>
+                {/* Day Columns Header */}
+                {activeDays.map((day) => {
+                  const isHiddenOnMobile = (mobileSelectedDay !== day);
+                  return (
+                    <div
+                      key={`header-${day}`}
+                      className={`flex-1 p-3.5 border-r border-slate-200 text-center font-extrabold text-xs text-slate-900 uppercase tracking-wider flex items-center justify-between bg-slate-50 ${
+                        isHiddenOnMobile ? 'hidden sm:flex' : 'flex'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 mx-auto">
+                        <Calendar className="w-4 h-4 text-indigo-600" />
+                        <span>{day}</span>
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+
+              {/* Matrix Body Rows (Sessions) */}
+              <div className="relative flex">
+                {/* Session Column (Left Sticky) */}
+                <div className="w-28 sm:w-36 shrink-0 flex flex-col bg-slate-50/90 border-r border-slate-200 sticky left-0 z-10">
+                  {standardPeriods.map((ts, idx) => (
+                    <div
+                      key={`session-row-label-${ts.id || idx}`}
+                      style={{ height: '72px' }}
+                      className="border-b border-slate-200 p-2 flex flex-col justify-center items-center text-center bg-slate-50/95"
+                    >
+                      <span className="text-xs font-extrabold text-slate-800 font-mono">
+                        Sesi {idx + 1}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono mt-0.5">
+                        {ts.startTime} - {ts.endTime}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Day Columns with Overlap Lanes Overlay */}
+                {activeDays.map((day) => {
+                  const isHiddenOnMobile = (mobileSelectedDay !== day);
+                  const dayTimeslots = timeslots
+                    .filter((t) => t.day === day && t.isActive)
+                    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+                  const dayAssignments = filteredAssignments.filter((a) => {
+                    const ts = timeslotMap.get(a.timeslotId);
+                    return ts?.day === day;
+                  });
+
+                  const totalRowHeight = 72;
+                  const containerHeight = standardPeriods.length * totalRowHeight;
+
+                  return (
+                    <div
+                      key={`day-col-${day}`}
+                      className={`flex-1 relative border-r border-slate-200 bg-white ${
+                        isHiddenOnMobile ? 'hidden sm:block' : 'block'
+                      }`}
+                      style={{ height: `${containerHeight}px` }}
+                    >
+                      {/* Background grid lines for sessions */}
+                      {standardPeriods.map((ts, idx) => (
+                        <div
+                          key={`bg-grid-${day}-${ts.id || idx}`}
+                          style={{ height: `${totalRowHeight}px` }}
+                          className="border-b border-slate-100 hover:bg-slate-50/40 transition-colors"
+                        />
+                      ))}
+
+                      {/* Event Cards Overlay Layer */}
+                      <div className="absolute inset-0 pointer-events-none p-1.5">
+                        {computeDayClusters(dayAssignments, dayTimeslots).map((cluster, cIdx) => (
+                          <ClusterSlider
+                            key={`cluster-${day}-${cIdx}`}
+                            cluster={cluster}
+                            rowHeight={totalRowHeight}
+                            courseMap={courseMap}
+                            roomMap={roomMap}
+                            getAssignmentOfferingMeta={getAssignmentOfferingMeta}
+                            getAssignedLecturers={getAssignedLecturers}
+                            handleOpenAssignment={handleOpenAssignment}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

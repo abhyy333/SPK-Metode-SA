@@ -140,13 +140,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {
         group: 'PENJADWALAN',
         items: [
-          { id: 'dashboard', label: 'Dashboard Utama', icon: LayoutDashboard },
+          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
           {
             id: 'scheduling',
-            label: 'Jadwal Perkuliahan',
+            label: 'Penyusunan Jadwal',
             icon: Zap,
             badge: 'Kuliah',
             badgeColor: 'indigo',
+          },
+          {
+            id: 'schedule',
+            label: 'Jadwal',
+            icon: Calendar,
+            badge: hasSchedule && conflictCount > 0 ? `${conflictCount} Bentrok` : hasSchedule ? (scheduleStatus === 'published' ? 'Terbit' : 'Draft') : undefined,
+            badgeColor: hasSchedule && conflictCount > 0 ? 'danger' : 'indigo',
           },
           {
             id: 'exam-scheduling',
@@ -156,20 +163,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             badgeColor: 'indigo',
           },
           {
-            id: 'schedule',
-            label: 'Jadwal Terbit',
-            icon: Calendar,
-            badge: hasSchedule && conflictCount > 0 ? `${conflictCount} Bentrok` : hasSchedule ? 'Resmi' : undefined,
-            badgeColor: hasSchedule && conflictCount > 0 ? 'danger' : 'indigo',
-          },
-          {
-            id: 'timetable',
-            label: 'Matriks & Penyesuaian',
-            icon: LayoutGrid,
-          },
-          {
             id: 'schedule-history',
-            label: 'Riwayat & Versi Jadwal',
+            label: 'Riwayat & Versi',
             icon: History,
           },
         ],
@@ -177,6 +172,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {
         group: 'DATA MASTER',
         items: [
+          { id: 'master-lecturers', label: 'Master Dosen Pengampu', icon: UserCheck },
           { id: 'courses', label: 'Mata Kuliah', icon: BookOpen },
           { id: 'lecturers', label: 'Dosen', icon: Users },
           { id: 'rooms', label: 'Ruangan', icon: DoorOpen },
@@ -218,9 +214,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Brand & Collapse Toggle Header */}
         <div className="p-3.5 border-b border-slate-100 flex items-center justify-between min-h-[64px]">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-700 to-indigo-900 text-white flex items-center justify-center font-bold text-lg shadow-xs shrink-0">
-              <Zap className="w-5 h-5 text-indigo-200 fill-indigo-200" />
-            </div>
             {!collapsed && (
               <div className="min-w-0 overflow-hidden">
                 <h1 className="font-black text-sm tracking-tight text-slate-900 truncate">ELEKTRO-SCHED</h1>

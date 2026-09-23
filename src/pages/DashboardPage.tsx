@@ -40,6 +40,7 @@ import {
   CourseOffering,
   CurriculumPackage,
 } from '../types';
+import { ScheduleValidationResult } from '../utils/scheduleValidation';
 import { Badge } from '../components/ui/Badge';
 
 interface DashboardPageProps {
@@ -50,6 +51,7 @@ interface DashboardPageProps {
   currentSchedule: ScheduleAssignment[] | null;
   initialSchedule: ScheduleAssignment[] | null;
   activeOptimizationResult: OptimizationResult | null;
+  scheduleValidation: ScheduleValidationResult;
   offerings?: CourseOffering[];
   packages?: CurriculumPackage[];
   onNavigate: (viewId: string) => void;
@@ -66,6 +68,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   currentSchedule,
   initialSchedule,
   activeOptimizationResult,
+  scheduleValidation,
   offerings = [],
   packages = [],
   onNavigate,
@@ -80,20 +83,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const scheduledCount = currentSchedule ? currentSchedule.length : 0;
   const unscheduledCount = Math.max(0, totalOfferings - scheduledCount);
 
+  const hardConflictsCount = scheduleValidation.hardConflictCount;
+  const currentConflicts = scheduleValidation.totalConflictsCount;
+  const warningCount = scheduleValidation.warningCount;
+
   const initialConflicts = activeOptimizationResult
     ? activeOptimizationResult.initialConflicts.total
-    : hasSchedule && !isOptimized
-    ? 14
-    : 0;
-
-  const currentConflicts = activeOptimizationResult
-    ? activeOptimizationResult.bestConflicts.total
     : hasSchedule
-    ? initialConflicts
-    : 0;
-
-  const hardConflictsCount = activeOptimizationResult
-    ? activeOptimizationResult.bestConflicts.hard
+    ? currentConflicts
     : 0;
 
   const conflictReduction = useMemo(() => {
