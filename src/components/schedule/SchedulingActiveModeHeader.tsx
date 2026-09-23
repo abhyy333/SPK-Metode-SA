@@ -13,19 +13,19 @@ export const SchedulingActiveModeHeader: React.FC<SchedulingActiveModeHeaderProp
   onOpenSwitchModeModal,
 }) => {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 bg-white rounded-2xl border border-slate-200 shadow-xs">
+    <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white rounded-md border border-slate-200">
       <div className="flex items-center gap-2.5 flex-wrap">
-        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mode Aktif:</span>
-        <span className="px-3 py-1 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1.5">
+        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Mode Aktif:</span>
+        <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-800 border border-slate-200 flex items-center gap-1.5">
           {scheduleCreationMode === 'template' ? (
             <>
-              <BookOpen className="w-3.5 h-3.5" />
+              <BookOpen className="w-3.5 h-3.5 text-slate-600" />
               Template Semester ({academicTerm === 'ganjil' ? 'Ganjil — 1, 3, 5, 7' : 'Genap — 2, 4, 6, 8'})
             </>
           ) : (
             <>
-              <Sliders className="w-3.5 h-3.5" />
-              Custom Manual (Bebas dari Seluruh Master MK)
+              <Sliders className="w-3.5 h-3.5 text-slate-600" />
+              Kustom Manual (Master MK)
             </>
           )}
         </span>
@@ -36,12 +36,13 @@ export const SchedulingActiveModeHeader: React.FC<SchedulingActiveModeHeaderProp
           type="button"
           onClick={onOpenSwitchModeModal}
           id="btn-switch-mode"
-          className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+          className="px-2.5 py-1 rounded-md bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
         >
-          <RefreshCw className="w-3.5 h-3.5 text-slate-600" />
+          <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
           <span>Ganti Mode</span>
         </button>
       </div>
     </div>
   );
 };
+

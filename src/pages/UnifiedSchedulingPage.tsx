@@ -1320,8 +1320,8 @@ export const UnifiedSchedulingPage: React.FC<UnifiedSchedulingPageProps> = ({
       </div>
 
       {/* Stepper Progress Bar */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="bg-white rounded-md p-2.5 sm:p-3 border border-slate-200">
+        <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
           {stepsConfig.map((step, idx) => {
             const isActive = activeStep === step.id;
             const isCompleted =
@@ -1332,33 +1332,33 @@ export const UnifiedSchedulingPage: React.FC<UnifiedSchedulingPageProps> = ({
                 <button
                   onClick={() => setActiveStep(step.id)}
                   id={`step-tab-${step.id}`}
-                  className={`flex items-center gap-2.5 py-1.5 px-3 rounded-xl text-left transition-all ${
+                  className={`flex items-center gap-2 py-1 px-2 text-left transition-colors cursor-pointer border-b-2 ${
                     isActive
-                      ? 'bg-indigo-50 border border-indigo-200 text-indigo-900 shadow-xs'
+                      ? 'border-slate-900 text-slate-900 font-semibold'
                       : isCompleted
-                      ? 'text-slate-700 hover:bg-slate-50'
-                      : 'text-slate-400 hover:text-slate-600'
+                      ? 'border-transparent text-slate-700 hover:text-slate-900'
+                      : 'border-transparent text-slate-400 hover:text-slate-600'
                   }`}
                 >
                   <div
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
+                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ${
                       isActive
-                        ? 'bg-indigo-600 text-white'
+                        ? 'bg-slate-900 text-white'
                         : isCompleted
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-slate-100 text-slate-500'
+                        ? 'bg-slate-200 text-slate-700'
+                        : 'bg-slate-100 text-slate-400'
                     }`}
                   >
-                    {isCompleted ? <Check className="w-4 h-4" /> : step.number}
+                    {isCompleted ? <Check className="w-3 h-3" /> : step.number}
                   </div>
                   <div className="hidden sm:block">
-                    <div className="text-xs font-bold leading-tight">{step.label}</div>
-                    <div className="text-[10px] text-slate-500">{step.desc}</div>
+                    <div className="text-xs leading-tight">{step.label}</div>
+                    <div className="text-[10px] text-slate-400">{step.desc}</div>
                   </div>
                 </button>
 
                 {idx < stepsConfig.length - 1 && (
-                  <ChevronRight className="w-4 h-4 text-slate-300 hidden lg:block shrink-0" />
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-300 hidden lg:block shrink-0" />
                 )}
               </React.Fragment>
             );

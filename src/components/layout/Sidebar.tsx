@@ -210,14 +210,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const collapsed = isMobile ? false : isCollapsed;
 
     return (
-      <div className={`flex flex-col h-full bg-white transition-all duration-200 ${isMobile ? 'w-full' : collapsed ? 'w-[72px]' : 'w-64'}`}>
+      <div className={`flex flex-col h-full bg-white transition-all duration-200 ${isMobile ? 'w-full' : collapsed ? 'w-[68px]' : 'w-60'}`}>
         {/* Brand & Collapse Toggle Header */}
-        <div className="p-3.5 border-b border-slate-100 flex items-center justify-between min-h-[64px]">
+        <div className="px-4 py-3.5 border-b border-slate-200 flex items-center justify-between min-h-[56px]">
           <div className="flex items-center gap-2.5 min-w-0">
             {!collapsed && (
               <div className="min-w-0 overflow-hidden">
-                <h1 className="font-black text-sm tracking-tight text-slate-900 truncate">ELEKTRO-SCHED</h1>
-                <p className="text-[10px] font-semibold text-indigo-600 leading-tight truncate">
+                <h1 className="font-bold text-xs uppercase tracking-wider text-slate-900 truncate">ELEKTRO-SCHEDULER</h1>
+                <p className="text-[11px] text-slate-500 leading-tight truncate">
                   Teknik Elektro UNRAM
                 </p>
               </div>
@@ -230,7 +230,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={handleToggle}
               id="btn-toggle-sidebar"
               title={collapsed ? 'Buka Sidebar' : 'Tutup Sidebar'}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
+              className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
             >
               {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
             </button>
@@ -240,24 +240,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {isMobile && (
             <button
               onClick={onCloseMobile}
-              className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+              className="p-1.5 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-100"
               aria-label="Tutup menu"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           )}
         </div>
 
         {/* Navigation List */}
-        <div className="flex-1 overflow-y-auto px-2.5 py-4 space-y-5">
+        <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
           {navigationItems.map((group, groupIdx) => (
-            <div key={groupIdx} className="space-y-1">
+            <div key={groupIdx} className="space-y-0.5">
               {!collapsed && (
-                <h2 className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 truncate">
+                <h2 className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 truncate">
                   {group.group}
                 </h2>
               )}
-              <div className="space-y-1 pt-0.5">
+              <div className="space-y-0.5">
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const isActive = activeView === item.id;
@@ -268,17 +268,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onClick={() => handleNavClick(item.id)}
                       title={collapsed ? item.label : undefined}
                       className={`w-full flex items-center ${
-                        collapsed ? 'justify-center px-2 py-2.5' : 'justify-between px-3 py-2.5'
-                      } rounded-xl text-xs font-semibold transition-all text-left group relative ${
+                        collapsed ? 'justify-center px-2 py-2' : 'justify-between px-2.5 py-1.5'
+                      } rounded-md text-xs transition-colors text-left group relative ${
                         isActive
-                          ? 'bg-indigo-50 text-indigo-700 font-bold shadow-xs border border-indigo-100'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                          ? 'bg-slate-100 text-slate-900 font-semibold border-l-2 border-slate-900'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-normal'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <Icon
                           className={`w-4 h-4 shrink-0 ${
-                            isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-700'
+                            isActive ? 'text-slate-900' : 'text-slate-400 group-hover:text-slate-600'
                           }`}
                         />
                         {!collapsed && <span className="truncate">{item.label}</span>}
@@ -286,10 +286,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                       {!collapsed && item.badge && (
                         <span
-                          className={`px-1.5 py-0.5 text-[10px] font-bold rounded-md uppercase tracking-tight shrink-0 ${
+                          className={`px-1.5 py-0.2 text-[10px] font-medium rounded shrink-0 border ${
                             item.badgeColor === 'danger'
-                              ? 'bg-rose-100 text-rose-700'
-                              : 'bg-indigo-100 text-indigo-800'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : 'bg-slate-100 text-slate-700 border-slate-200'
                           }`}
                         >
                           {item.badge}
@@ -298,7 +298,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                       {/* Hover Floating Tooltip when Collapsed */}
                       {collapsed && (
-                        <div className="absolute left-full ml-2 px-2.5 py-1 bg-slate-900 text-white text-[11px] font-medium rounded-md whitespace-nowrap shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
+                        <div className="absolute left-full ml-2 px-2.5 py-1 bg-slate-900 text-white text-[11px] font-medium rounded-md whitespace-nowrap shadow-md opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
                           {item.label}
                         </div>
                       )}
@@ -311,13 +311,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Footer Reset Simulation & Info */}
-        <div className="p-2.5 border-t border-slate-100 bg-slate-50/70 space-y-2">
+        <div className="p-2.5 border-t border-slate-200 bg-white space-y-2">
           {!collapsed && (
-            <div className="px-2 py-1.5 rounded-lg bg-indigo-50/60 border border-indigo-100/70 text-[11px] text-slate-600">
-              <div className="flex items-center justify-between font-medium">
-                <span className="text-slate-500">T.A.:</span>
-                <span className="font-semibold text-indigo-900">2026/2027 Ganjil</span>
-              </div>
+            <div className="px-2 py-1 text-[11px] text-slate-500 flex items-center justify-between">
+              <span>T.A. Ganjil:</span>
+              <span className="font-semibold text-slate-700">2026/2027</span>
             </div>
           )}
 
@@ -327,11 +325,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               id="btn-reset-simulation-modal"
               title="Reset Data Simulasi"
               className={`w-full flex items-center ${
-                collapsed ? 'justify-center p-2.5' : 'justify-center gap-2 px-3 py-2'
-              } rounded-xl text-xs font-semibold text-rose-700 hover:text-rose-800 hover:bg-rose-50 border border-rose-200 transition-all bg-white shadow-xs`}
+                collapsed ? 'justify-center p-2' : 'justify-center gap-1.5 px-2.5 py-1.5'
+              } rounded-md text-xs font-medium text-slate-600 hover:text-rose-700 hover:bg-rose-50 border border-slate-200 transition-colors bg-white`}
             >
-              <RotateCcw className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-              {!collapsed && <span>Reset Data Simulasi</span>}
+              <RotateCcw className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              {!collapsed && <span>Reset Simulasi</span>}
             </button>
           )}
         </div>

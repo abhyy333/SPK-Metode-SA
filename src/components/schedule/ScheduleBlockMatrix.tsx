@@ -60,14 +60,14 @@ const ALL_ACTIVE_DAYS: DayOfWeek[] = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat
 
 // Semester accent colors for subtle visual identity
 const SEMESTER_COLOR_MAP: Record<number, { border: string; bg: string; badge: string; text: string }> = {
-  1: { border: 'border-l-indigo-600', bg: 'bg-indigo-50/30', badge: 'bg-indigo-100 text-indigo-900', text: 'text-indigo-950' },
-  2: { border: 'border-l-sky-600', bg: 'bg-sky-50/30', badge: 'bg-sky-100 text-sky-900', text: 'text-sky-950' },
-  3: { border: 'border-l-emerald-600', bg: 'bg-emerald-50/30', badge: 'bg-emerald-100 text-emerald-900', text: 'text-emerald-950' },
-  4: { border: 'border-l-teal-600', bg: 'bg-teal-50/30', badge: 'bg-teal-100 text-teal-900', text: 'text-teal-950' },
-  5: { border: 'border-l-amber-600', bg: 'bg-amber-50/30', badge: 'bg-amber-100 text-amber-900', text: 'text-amber-950' },
-  6: { border: 'border-l-orange-600', bg: 'bg-orange-50/30', badge: 'bg-orange-100 text-orange-900', text: 'text-orange-950' },
-  7: { border: 'border-l-purple-600', bg: 'bg-purple-50/30', badge: 'bg-purple-100 text-purple-900', text: 'text-purple-950' },
-  8: { border: 'border-l-rose-600', bg: 'bg-rose-50/30', badge: 'bg-rose-100 text-rose-900', text: 'text-rose-950' },
+  1: { border: 'border-l-slate-700', bg: 'bg-white', badge: 'bg-slate-100 text-slate-800', text: 'text-slate-900' },
+  2: { border: 'border-l-slate-600', bg: 'bg-white', badge: 'bg-slate-100 text-slate-800', text: 'text-slate-900' },
+  3: { border: 'border-l-indigo-700', bg: 'bg-white', badge: 'bg-indigo-50 text-indigo-900', text: 'text-slate-900' },
+  4: { border: 'border-l-blue-700', bg: 'bg-white', badge: 'bg-blue-50 text-blue-900', text: 'text-slate-900' },
+  5: { border: 'border-l-slate-800', bg: 'bg-white', badge: 'bg-slate-100 text-slate-800', text: 'text-slate-900' },
+  6: { border: 'border-l-teal-800', bg: 'bg-white', badge: 'bg-teal-50 text-teal-900', text: 'text-slate-900' },
+  7: { border: 'border-l-indigo-900', bg: 'bg-white', badge: 'bg-indigo-50 text-indigo-900', text: 'text-slate-900' },
+  8: { border: 'border-l-slate-900', bg: 'bg-white', badge: 'bg-slate-100 text-slate-800', text: 'text-slate-900' },
 };
 
 interface BlockItem {
@@ -543,9 +543,9 @@ export const ScheduleBlockMatrix: React.FC<ScheduleBlockMatrixProps> = ({
     <div className="space-y-4" id="schedule-block-matrix-container">
       {/* 1. FILTER TOOLBAR (Clean, Academic, Functional) */}
       {!hideFilterToolbar && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-3.5">
+        <div className="bg-white rounded-md border border-slate-200 p-3 sm:p-4 space-y-3">
           {/* Row 1: Search Input & Quick Semester Buttons */}
-          <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+          <div className="flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center justify-between">
             <div className="relative flex-1">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -553,7 +553,7 @@ export const ScheduleBlockMatrix: React.FC<ScheduleBlockMatrixProps> = ({
                 placeholder="Cari mata kuliah, dosen, ruangan, kelas..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-800 placeholder:text-slate-400"
+                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-md border border-slate-200 bg-slate-50 focus:bg-white focus:outline-hidden focus:border-slate-400 font-medium text-slate-800 placeholder:text-slate-400"
               />
               {searchTerm && (
                 <button
@@ -566,16 +566,16 @@ export const ScheduleBlockMatrix: React.FC<ScheduleBlockMatrixProps> = ({
             </div>
 
             {/* Semester selector with strict "Sem" format */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
-              <span className="text-xs font-bold text-slate-500 mr-1 shrink-0 flex items-center gap-1">
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 lg:pb-0">
+              <span className="text-xs font-semibold text-slate-500 mr-1 shrink-0 flex items-center gap-1">
                 <Layers className="w-3.5 h-3.5" />
                 <span>Semester:</span>
               </span>
               <button
                 onClick={() => setSelectedSemester('all')}
-                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all shrink-0 cursor-pointer ${
+                className={`px-2 py-1 text-xs font-medium rounded-md transition-colors shrink-0 cursor-pointer ${
                   selectedSemester === 'all'
-                    ? 'bg-slate-900 text-white shadow-2xs'
+                    ? 'bg-slate-900 text-white'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
@@ -585,9 +585,9 @@ export const ScheduleBlockMatrix: React.FC<ScheduleBlockMatrixProps> = ({
                 <button
                   key={sem}
                   onClick={() => setSelectedSemester(sem)}
-                  className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all shrink-0 cursor-pointer ${
+                  className={`px-2 py-1 text-xs font-medium rounded-md transition-colors shrink-0 cursor-pointer ${
                     selectedSemester === sem
-                      ? 'bg-indigo-600 text-white shadow-2xs'
+                      ? 'bg-slate-800 text-white'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
@@ -601,13 +601,13 @@ export const ScheduleBlockMatrix: React.FC<ScheduleBlockMatrixProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-2.5 border-t border-slate-100 text-xs">
             {/* Kurikulum */}
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
                 Kurikulum
               </label>
               <select
                 value={selectedCurriculum}
                 onChange={(e) => setSelectedCurriculum(e.target.value)}
-                className="w-full text-xs px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800"
+                className="w-full text-xs px-2.5 py-1.5 rounded-md border border-slate-200 bg-white font-medium text-slate-800"
               >
                 <option value="all">Semua Kurikulum</option>
                 <option value="2026">Kurikulum 2026</option>
@@ -617,13 +617,13 @@ export const ScheduleBlockMatrix: React.FC<ScheduleBlockMatrixProps> = ({
 
             {/* KBK */}
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
                 KBK / Konsentrasi
               </label>
               <select
                 value={selectedKbk}
                 onChange={(e) => setSelectedKbk(e.target.value)}
-                className="w-full text-xs px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800"
+                className="w-full text-xs px-2.5 py-1.5 rounded-md border border-slate-200 bg-white font-medium text-slate-800"
               >
                 <option value="all">Semua KBK &amp; Wajib</option>
                 <option value="common">Paket Umum (Sem 1–4)</option>
@@ -635,13 +635,13 @@ export const ScheduleBlockMatrix: React.FC<ScheduleBlockMatrixProps> = ({
 
             {/* Hari */}
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
                 Hari Kuliah
               </label>
               <select
                 value={selectedDay}
                 onChange={(e) => setSelectedDay(e.target.value as any)}
-                className="w-full text-xs px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800"
+                className="w-full text-xs px-2.5 py-1.5 rounded-md border border-slate-200 bg-white font-medium text-slate-800"
               >
                 <option value="all">Semua Hari (Senin–Jumat)</option>
                 {activeDays.map((d) => (
@@ -654,13 +654,13 @@ export const ScheduleBlockMatrix: React.FC<ScheduleBlockMatrixProps> = ({
 
             {/* Dosen */}
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
                 Dosen Pengampu
               </label>
               <select
                 value={selectedLecturerId}
                 onChange={(e) => setSelectedLecturerId(e.target.value)}
-                className="w-full text-xs px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 truncate"
+                className="w-full text-xs px-2.5 py-1.5 rounded-md border border-slate-200 bg-white font-medium text-slate-800 truncate"
               >
                 <option value="all">Semua Dosen</option>
                 {lecturers.map((l) => (
@@ -673,13 +673,13 @@ export const ScheduleBlockMatrix: React.FC<ScheduleBlockMatrixProps> = ({
 
             {/* Ruangan */}
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
                 Ruangan
               </label>
               <select
                 value={selectedRoomId}
                 onChange={(e) => setSelectedRoomId(e.target.value)}
-                className="w-full text-xs px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800"
+                className="w-full text-xs px-2.5 py-1.5 rounded-md border border-slate-200 bg-white font-medium text-slate-800"
               >
                 <option value="all">Semua Ruangan</option>
                 {rooms.map((r) => (
@@ -692,13 +692,13 @@ export const ScheduleBlockMatrix: React.FC<ScheduleBlockMatrixProps> = ({
 
             {/* Status Konflik */}
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
                 Status Validasi
               </label>
               <select
                 value={selectedConflictFilter}
                 onChange={(e) => setSelectedConflictFilter(e.target.value as any)}
-                className="w-full text-xs px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white font-semibold text-slate-800"
+                className="w-full text-xs px-2.5 py-1.5 rounded-md border border-slate-200 bg-white font-semibold text-slate-800"
               >
                 <option value="all">Semua Status</option>
                 <option value="aman">Aman ({stats.aman})</option>
@@ -712,37 +712,32 @@ export const ScheduleBlockMatrix: React.FC<ScheduleBlockMatrixProps> = ({
 
       {/* 2. SPECIAL KKN NOTICE CALLOUT */}
       {isKknRelevant && (
-        <div className="bg-sky-50/80 border border-sky-200 rounded-2xl p-4 text-sky-950 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-xl bg-sky-100 text-sky-700 shrink-0 mt-0.5 sm:mt-0">
-              <Info className="w-4 h-4" />
-            </div>
+        <div className="bg-slate-50 border border-slate-200 rounded-md p-3 text-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <Info className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
             <div className="space-y-0.5">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold text-sky-950">
+                <span className="text-xs font-semibold text-slate-900">
                   Kuliah Kerja Nyata (KKN)
                 </span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold bg-sky-200 text-sky-900">
-                  KKN — Dikelola LPPM
-                </span>
-                <span className="text-[11px] font-semibold text-sky-800">
-                  4 SKS • Semester 7 (Semua KBK)
+                <span className="text-[11px] text-slate-500">
+                  • 4 SKS • Semester 7 (Semua KBK)
                 </span>
               </div>
-              <p className="text-xs text-sky-800 leading-relaxed">
-                Mata kuliah KKN berbobot 4 SKS dikelola terpusat oleh Lembaga Penelitian dan Pengabdian kepada Masyarakat (LPPM) UNRAM di lokasi desa penempatan. Tidak menggunakan slot waktu dan ruangan kelas mingguan di kampus.
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Mata kuliah KKN dikelola terpusat oleh Lembaga Penelitian dan Pengabdian kepada Masyarakat (LPPM) UNRAM. Tidak menggunakan slot waktu dan ruangan kelas mingguan di kampus.
               </p>
             </div>
           </div>
-          <span className="self-start sm:self-center px-2.5 py-1 rounded-lg bg-white border border-sky-200 text-[11px] font-bold text-sky-800 shrink-0">
+          <span className="self-start sm:self-center px-2 py-0.5 rounded bg-white border border-slate-200 text-[11px] font-medium text-slate-700 shrink-0">
             Terpusat LPPM
           </span>
         </div>
       )}
 
       {/* 3. MOBILE DAY TAB SWITCHER */}
-      <div className="sm:hidden flex items-center gap-1 overflow-x-auto pb-1 bg-white p-2 rounded-xl border border-slate-200 shadow-2xs">
-        <span className="text-xs font-bold text-slate-500 px-2 shrink-0">Pilih Hari:</span>
+      <div className="sm:hidden flex items-center gap-1 overflow-x-auto pb-1 bg-white p-1.5 rounded-md border border-slate-200">
+        <span className="text-xs font-semibold text-slate-500 px-1.5 shrink-0">Hari:</span>
         {activeDays.map((day) => {
           const count = filteredBlockItems.filter((b) => b.day === day).length;
           const isSelected = mobileActiveDay === day;
@@ -750,19 +745,15 @@ export const ScheduleBlockMatrix: React.FC<ScheduleBlockMatrixProps> = ({
             <button
               key={day}
               onClick={() => setMobileActiveDay(day)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors shrink-0 cursor-pointer flex items-center gap-1 ${
                 isSelected
-                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  ? 'bg-slate-900 text-white'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               <span>{day}</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                  isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
-                }`}
-              >
-                {count}
+              <span className={`text-[10px] ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
+                ({count})
               </span>
             </button>
           );
@@ -770,12 +761,12 @@ export const ScheduleBlockMatrix: React.FC<ScheduleBlockMatrixProps> = ({
       </div>
 
       {/* 4. MAIN SCHEDULE BLOCK MATRIX (Dynamic Expandable Canvas with Sticky Headers) */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
+      <div className="bg-white rounded-md border border-slate-200 overflow-hidden flex flex-col">
         {/* Matrix Canvas Navigation Bar */}
-        <div className="px-4 py-2.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-white text-xs">
+        <div className="px-3 py-2 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-white text-xs">
           <div className="flex items-center gap-2">
-            <span className="font-extrabold text-white tracking-wide flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-indigo-400" />
+            <span className="font-semibold text-white flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-slate-300" />
               <span>Papan Jadwal Perkuliahan</span>
             </span>
             <span className="text-[11px] text-slate-400 hidden sm:inline">
@@ -944,27 +935,27 @@ export const ScheduleBlockMatrix: React.FC<ScheduleBlockMatrixProps> = ({
                           gridColumn: `${colStart} / span ${colSpan}`,
                           minWidth: '215px',
                         }}
-                        className={`m-1 p-2.5 rounded-xl border text-left cursor-pointer transition-all duration-200 flex flex-col justify-between group relative z-10 ${
+                        className={`m-1 p-2.5 rounded-md border text-left cursor-pointer transition-colors duration-150 flex flex-col justify-between group relative z-10 bg-white ${
                           isHighlighted
-                            ? 'ring-4 ring-rose-500 shadow-2xl scale-[1.03] z-30 animate-pulse bg-rose-50 border-rose-600'
+                            ? 'ring-2 ring-indigo-600 border-indigo-400 z-30 shadow-xs'
                             : item.status === 'bentrok'
-                            ? 'bg-rose-50/95 border-2 border-rose-500 shadow-xs hover:border-rose-600'
+                            ? 'border-slate-200 border-l-4 border-l-rose-600 hover:border-slate-300 shadow-2xs'
                             : item.status === 'perhatian'
-                            ? 'bg-amber-50/95 border-2 border-amber-400 shadow-2xs hover:border-amber-500'
-                            : `bg-white border border-slate-200/90 hover:border-indigo-400 hover:shadow-md ${semTheme.border} border-l-4`
+                            ? 'border-slate-200 border-l-4 border-l-amber-500 hover:border-slate-300 shadow-2xs'
+                            : `border-slate-200 hover:border-slate-300 shadow-2xs ${semTheme.border} border-l-4`
                         }`}
                         title={`Klik untuk melihat detail jadwal: ${item.formattedCourseTitle}`}
                       >
                         {/* TOP SECTION: Course Name & Info */}
                         <div>
-                          {/* 1. Nama Mata Kuliah + Section (e.g. Probabilitas dan Statistik-A) */}
-                          <div className="font-black text-slate-900 text-xs sm:text-sm leading-snug line-clamp-2 tracking-tight group-hover:text-indigo-900 transition-colors">
+                          {/* 1. Nama Mata Kuliah + Section */}
+                          <div className="font-semibold text-slate-900 text-xs sm:text-sm leading-snug line-clamp-2">
                             {item.formattedCourseTitle}
                           </div>
 
                           {/* 2. Info: Sem [X] • [Y] SKS */}
-                          <div className="mt-1 flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold ${semTheme.badge}`}>
+                          <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600">
+                            <span className="font-medium text-slate-700">
                               {item.semesterLabel}
                             </span>
                             <span>•</span>
@@ -972,7 +963,7 @@ export const ScheduleBlockMatrix: React.FC<ScheduleBlockMatrixProps> = ({
                             {item.kbkLabel && (
                               <>
                                 <span>•</span>
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200">
+                                <span className="text-[10px] font-medium text-slate-500">
                                   {item.kbkLabel}
                                 </span>
                               </>
@@ -980,51 +971,51 @@ export const ScheduleBlockMatrix: React.FC<ScheduleBlockMatrixProps> = ({
                           </div>
 
                           {/* 3. Rentang waktu: 09:30 - 11:10 */}
-                          <div className="mt-1.5 flex items-center gap-1 text-[11px] font-mono font-bold text-slate-800">
-                            <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                          <div className="mt-1 flex items-center gap-1 text-xs font-mono font-medium text-slate-700">
+                            <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                             <span>{item.timeRangeLabel}</span>
                           </div>
 
-                          {/* 4. Dosen Pengampu: Nama Dosen atau "Belum Ada Dosen" */}
-                          <div className="mt-1 text-[11px]">
+                          {/* 4. Dosen Pengampu */}
+                          <div className="mt-1 text-xs">
                             {item.primaryLecturerName ? (
-                              <div className="font-semibold text-slate-800 truncate flex items-center gap-1">
-                                <User className="w-3 h-3 text-slate-400 shrink-0" />
-                                <span>{item.primaryLecturerName}</span>
+                              <div className="text-slate-700 truncate flex items-center gap-1">
+                                <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span className="truncate">{item.primaryLecturerName}</span>
                               </div>
                             ) : (
-                              <div className="font-bold text-amber-700 italic flex items-center gap-1 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 text-[10px]">
-                                <AlertCircle className="w-3 h-3 text-amber-600 shrink-0" />
+                              <div className="text-amber-800 flex items-center gap-1 text-[11px] font-medium">
+                                <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                                 <span>Belum Ada Dosen</span>
                               </div>
                             )}
                           </div>
                         </div>
 
-                        {/* BOTTOM SECTION: Ruangan & Jumlah Mahasiswa (e.g. C2-09 | 40 Mhs) */}
-                        <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-bold">
+                        {/* BOTTOM SECTION: Ruangan & Jumlah Mahasiswa */}
+                        <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
                           {/* Ruangan */}
-                          <div className="flex items-center gap-1 text-slate-800">
-                            <DoorOpen className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <div className="flex items-center gap-1 font-medium text-slate-800">
+                            <DoorOpen className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                             <span>{item.roomCode}</span>
                           </div>
 
                           {/* Jumlah mahasiswa */}
-                          <div className="text-slate-600 font-semibold">
+                          <div className="text-slate-500 text-[11px]">
                             {item.studentCountLabel}
                           </div>
                         </div>
 
-                        {/* Conflict warning banner if applicable */}
+                        {/* Conflict warning indicator strip if applicable */}
                         {item.status === 'bentrok' && (
-                          <div className="mt-1.5 text-[9px] font-black text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded flex items-center gap-1">
-                            <AlertTriangle className="w-2.5 h-2.5 shrink-0 animate-pulse text-rose-600" />
-                            <span className="truncate">BENTROK JADWAL</span>
+                          <div className="mt-1.5 text-[11px] font-medium text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3 shrink-0 text-rose-600" />
+                            <span className="truncate font-semibold">Bentrok Terdeteksi</span>
                           </div>
                         )}
                         {item.status === 'perhatian' && (
-                          <div className="mt-1.5 text-[9px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded flex items-center gap-1">
-                            <AlertCircle className="w-2.5 h-2.5 shrink-0 text-amber-600" />
+                          <div className="mt-1.5 text-[11px] font-medium text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0 text-amber-600" />
                             <span className="truncate">Perlu Perhatian</span>
                           </div>
                         )}

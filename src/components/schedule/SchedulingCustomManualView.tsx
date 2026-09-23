@@ -66,21 +66,21 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
   handleClearAllSelected,
 }) => {
   return (
-    <div className="space-y-5 animate-in fade-in duration-200">
+    <div className="space-y-4">
       {/* Filter Toolbar for Custom Manual Mode */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-4">
+      <div className="bg-white rounded-md p-4 border border-slate-200 space-y-3.5">
         {/* Row 1: Target Academic Term Switcher & Quick Bulk Actions */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Periode Target:</span>
-            <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold">
+            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Periode Target:</span>
+            <div className="inline-flex p-0.5 bg-slate-100 rounded-md border border-slate-200 text-xs">
               <button
                 type="button"
                 onClick={() => setAcademicTerm('ganjil')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
+                className={`px-3 py-1.5 rounded transition-all cursor-pointer ${
                   academicTerm === 'ganjil'
-                    ? 'bg-white text-indigo-900 shadow-xs font-black'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-slate-900 font-semibold shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 font-medium'
                 }`}
               >
                 Semester Ganjil (1, 3, 5, 7)
@@ -88,10 +88,10 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
               <button
                 type="button"
                 onClick={() => setAcademicTerm('genap')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
+                className={`px-3 py-1.5 rounded transition-all cursor-pointer ${
                   academicTerm === 'genap'
-                    ? 'bg-white text-indigo-900 shadow-xs font-black'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-slate-900 font-semibold shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 font-medium'
                 }`}
               >
                 Semester Genap (2, 4, 6, 8)
@@ -105,7 +105,7 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
               type="button"
               onClick={handleSelectAllFilteredCustom}
               id="btn-select-all-filtered-custom"
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+              className="px-2.5 py-1.5 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <Check className="w-3.5 h-3.5" />
               <span>Pilih Semua Terfilter ({filteredCustomCourses.filter((c) => !checkIsPracticum(c)).length} MK)</span>
@@ -114,7 +114,7 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
               type="button"
               onClick={handleClearAllSelected}
               id="btn-clear-all-custom"
-              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-2.5 py-1.5 rounded-md bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
               <span>Kosongkan Semua</span>
@@ -123,27 +123,27 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
         </div>
 
         {/* Row 2: Multi-Filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
           {/* Search */}
           <div>
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+            <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
               Cari MK:
             </label>
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
               <input
                 type="text"
                 placeholder="Kode / Nama MK..."
                 value={customFilterSearch}
                 onChange={(e) => setCustomFilterSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500"
+                className="w-full pl-8 pr-2.5 py-1 text-xs rounded-md border border-slate-200 bg-white font-medium focus:border-slate-400 focus:outline-hidden"
               />
             </div>
           </div>
 
           {/* Filter Kurikulum */}
           <div>
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+            <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
               Kurikulum:
             </label>
             <select
@@ -151,7 +151,7 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
               onChange={(e) =>
                 setCustomFilterCurriculum(e.target.value === 'all' ? 'all' : Number(e.target.value))
               }
-              className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-white font-medium"
+              className="w-full px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-white font-medium focus:border-slate-400 focus:outline-hidden"
             >
               <option value="all">Semua Kurikulum</option>
               <option value={2026}>Kurikulum 2026 (OBE)</option>
@@ -161,7 +161,7 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
 
           {/* Filter Semester */}
           <div>
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+            <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
               Semester:
             </label>
             <select
@@ -169,7 +169,7 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
               onChange={(e) =>
                 setCustomFilterSemester(e.target.value === 'all' ? 'all' : Number(e.target.value))
               }
-              className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-white font-medium"
+              className="w-full px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-white font-medium focus:border-slate-400 focus:outline-hidden"
             >
               <option value="all">Semua Semester</option>
               {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
@@ -182,13 +182,13 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
 
           {/* Filter KBK */}
           <div>
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+            <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
               Peminatan / KBK:
             </label>
             <select
               value={customFilterKbk}
               onChange={(e) => setCustomFilterKbk(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-white font-medium"
+              className="w-full px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-white font-medium focus:border-slate-400 focus:outline-hidden"
             >
               <option value="all">Semua KBK</option>
               <option value="none">Tanpa KBK / Bersama</option>
@@ -202,13 +202,13 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
 
           {/* Filter Kategori / Jenis */}
           <div>
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+            <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
               Jenis MK:
             </label>
             <select
               value={customFilterCategory}
               onChange={(e) => setCustomFilterCategory(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-white font-medium"
+              className="w-full px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-white font-medium focus:border-slate-400 focus:outline-hidden"
             >
               <option value="all">Semua Jenis</option>
               <option value="Wajib">MK Wajib</option>
@@ -219,35 +219,35 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
         </div>
       </div>
 
-      {/* Summary Counter Pill */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-medium">
+      {/* Summary Counter */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-800 font-medium">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="w-2 h-2 rounded-full bg-slate-600" />
           <span>
             Hasil Filter: <strong>{filteredCustomCourses.length} MK</strong> (Total Dipilih:{' '}
             <strong>{totalPlannedCoursesCount} MK</strong> • {totalPlannedStudentsCount} Mahasiswa •{' '}
             {totalCalculatedSectionsCount} Estimasi Rombel)
           </span>
         </div>
-        <div className="text-[11px] text-slate-400">
+        <div className="text-[11px] text-slate-500">
           * Mata kuliah di luar periode {academicTerm === 'ganjil' ? 'Ganjil' : 'Genap'} ditandai dengan label peringatan.
         </div>
       </div>
 
       {/* Custom Manual Courses Table & Cards */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-md border border-slate-200 overflow-hidden">
         {/* Desktop Table */}
         <div className="hidden sm:block overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-600">
-            <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
+          <table className="w-full text-left text-xs text-slate-700">
+            <thead className="bg-slate-50/70 text-slate-600 font-semibold border-b border-slate-200 text-[11px] uppercase tracking-wider">
               <tr>
-                <th className="p-3 w-12 text-center">Pilih</th>
-                <th className="p-3">Kode & Nama Mata Kuliah</th>
-                <th className="p-3 w-20">SKS</th>
-                <th className="p-3 w-24">Semester</th>
-                <th className="p-3 w-36">Kurikulum & KBK</th>
-                <th className="p-3 w-48">Jumlah Mahasiswa</th>
-                <th className="p-3">Estimasi Rombel</th>
+                <th className="py-2.5 px-3 w-12 text-center">Pilih</th>
+                <th className="py-2.5 px-3">Kode &amp; Nama Mata Kuliah</th>
+                <th className="py-2.5 px-3 w-16 text-center">SKS</th>
+                <th className="py-2.5 px-3 w-20 text-center">Semester</th>
+                <th className="py-2.5 px-3 w-36">Kurikulum &amp; KBK</th>
+                <th className="py-2.5 px-3 w-48">Jumlah Mahasiswa</th>
+                <th className="py-2.5 px-3">Estimasi Rombel</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
@@ -286,10 +286,10 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
                     <tr
                       key={course.id}
                       className={`transition-colors ${
-                        isSelected ? 'bg-indigo-50/30 hover:bg-indigo-50/50' : 'hover:bg-slate-50/60 opacity-80'
+                        isSelected ? 'bg-slate-50/70 hover:bg-slate-50' : 'hover:bg-slate-50/40 opacity-75'
                       }`}
                     >
-                      <td className="p-3 text-center align-top">
+                      <td className="py-2.5 px-3 text-center align-top">
                         <input
                           type="checkbox"
                           id={`custom-cb-${course.id}`}
@@ -302,23 +302,23 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
                               course.kbkId || null
                             )
                           }
-                          className="w-4 h-4 text-indigo-600 rounded-md border-slate-300 focus:ring-indigo-500 cursor-pointer mt-1"
+                          className="w-3.5 h-3.5 text-slate-900 rounded border-slate-300 focus:ring-slate-900 cursor-pointer mt-0.5"
                         />
                       </td>
 
-                      <td className="p-3 align-top">
+                      <td className="py-2.5 px-3 align-top">
                         <label
                           htmlFor={`custom-cb-${course.id}`}
-                          className="font-bold text-slate-900 cursor-pointer hover:text-indigo-600 block text-xs"
+                          className="font-medium text-slate-900 cursor-pointer hover:text-slate-700 block text-xs"
                         >
                           {course.name}
                         </label>
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           <span className="text-[11px] text-slate-500 font-mono">
                             {course.code}
                           </span>
                           {isOut && (
-                            <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-300 font-bold text-[10px] flex items-center gap-1">
+                            <span className="px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200 font-medium text-[10px] flex items-center gap-1">
                               <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
                               <span>Di Luar Periode Aktif (Sem {sem})</span>
                             </span>
@@ -326,47 +326,47 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
                         </div>
                       </td>
 
-                      <td className="p-3 align-top font-bold text-slate-800">
-                        {course.sks} SKS
+                      <td className="py-2.5 px-3 align-top text-center font-mono font-medium text-slate-800">
+                        {course.sks}
                       </td>
 
-                      <td className="p-3 align-top">
-                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 font-bold text-xs">
+                      <td className="py-2.5 px-3 align-top text-center">
+                        <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-mono text-xs">
                           Sem {sem}
                         </span>
                       </td>
 
-                      <td className="p-3 align-top space-y-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                      <td className="py-2.5 px-3 align-top space-y-1">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className="px-1 py-0.2 rounded text-[10px] font-mono text-slate-700 bg-slate-100">
                             {currYear}
                           </span>
                           {isPracticum ? (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
                               Praktikum
                             </span>
                           ) : course.category === 'Pilihan' ? (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
                               Pilihan
                             </span>
                           ) : (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-800 border border-slate-200">
                               Wajib
                             </span>
                           )}
                         </div>
                         {kbkObj && (
-                          <div className="text-[10px] font-bold text-purple-700">
+                          <div className="text-[10px] font-mono text-slate-600">
                             KBK {kbkObj.code}
                           </div>
                         )}
                       </td>
 
                       {/* Student Count Input */}
-                      <td className="p-3 align-top">
+                      <td className="py-2.5 px-3 align-top">
                         {isSelected ? (
                           isPracticum ? (
-                            <div className="text-[11px] text-purple-700 font-semibold py-1">
+                            <div className="text-[11px] text-slate-500 font-medium py-1">
                               Praktikum Lab (Otomatis)
                             </div>
                           ) : (
@@ -376,7 +376,7 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
                                   id={`custom-input-desk-${course.id}`}
                                   type="text"
                                   inputMode="numeric"
-                                  placeholder="Isi jumlah"
+                                  placeholder="Isi kuota"
                                   value={rawInput}
                                   onChange={(e) =>
                                     handleStudentInputChange(course.id, e.target.value)
@@ -384,28 +384,26 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
                                   onBlur={() =>
                                     handleStudentInputBlur(course.id)
                                   }
-                                  className={`w-28 px-2.5 py-1.5 text-xs rounded-xl border font-bold text-slate-900 transition-all ${
+                                  className={`w-24 px-2 py-1 text-xs rounded border font-mono font-medium text-slate-900 transition-colors ${
                                     isRawEmpty
-                                      ? 'border-rose-400 focus:ring-2 focus:ring-rose-400 bg-rose-50/20'
+                                      ? 'border-rose-400 bg-rose-50/30'
                                       : isBelowMin
-                                      ? 'border-amber-400 focus:ring-2 focus:ring-amber-400 bg-amber-50/20'
-                                      : 'border-slate-300 focus:ring-2 focus:ring-indigo-500 bg-white'
+                                      ? 'border-amber-400 bg-amber-50/30'
+                                      : 'border-slate-300 bg-white focus:border-slate-500 focus:outline-hidden'
                                   }`}
                                 />
-                                <span className="text-xs text-slate-500 font-medium">mhs</span>
+                                <span className="text-[11px] text-slate-500 font-medium">mhs</span>
                               </div>
 
                               {isRawEmpty && (
-                                <div className="text-[10px] text-rose-600 font-semibold flex items-center gap-1">
-                                  <span className="text-rose-500 font-bold">⚠</span>
+                                <div className="text-[10px] text-rose-600 font-medium flex items-center gap-1">
                                   <span>Wajib diisi</span>
                                 </div>
                               )}
 
                               {isBelowMin && (
-                                <div className="text-[10px] text-amber-700 font-semibold flex items-center gap-1">
-                                  <span className="text-amber-500 font-bold">⚠</span>
-                                  <span>Minimal 10 mhs</span>
+                                <div className="text-[10px] text-amber-700 font-medium flex items-center gap-1">
+                                  <span>Min. 10 mhs untuk buka kelas</span>
                                 </div>
                               )}
                             </div>
@@ -415,9 +413,9 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
                             <input
                               type="text"
                               disabled
-                              placeholder="Isi jumlah"
+                              placeholder="Isi kuota"
                               value=""
-                              className="w-28 px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
+                              className="w-24 px-2 py-1 text-xs rounded border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed font-mono"
                             />
                             <span className="text-[11px] text-slate-400">mhs</span>
                           </div>
@@ -425,34 +423,34 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
                       </td>
 
                       {/* Section Preview */}
-                      <td className="p-3 align-top">
+                      <td className="py-2.5 px-3 align-top">
                         {isSelected ? (
                           isPracticum ? (
-                            <span className="text-purple-700 font-semibold text-[11px] block py-1.5">
+                            <span className="text-slate-500 text-[11px] block py-1">
                               Jadwal Khusus Lab
                             </span>
                           ) : isRawEmpty ? (
-                            <span className="text-slate-400 italic text-[11px] block py-1.5">
+                            <span className="text-slate-400 italic text-[11px] block py-1">
                               Jumlah mahasiswa belum diisi
                             </span>
                           ) : isBelowMin ? (
-                            <span className="text-rose-600 font-bold text-[11px] block py-1.5">
-                              &lt; 10 mhs (Kelas Tidak Dibuka)
+                            <span className="text-rose-600 font-semibold text-[11px] block py-1">
+                              &lt; 10 mhs (Tidak Dibuka)
                             </span>
                           ) : isValidCount ? (
-                            <div className="py-1">
-                              <span className="text-indigo-700 font-bold text-xs">
+                            <div className="py-0.5">
+                              <span className="text-slate-900 font-semibold text-xs font-mono">
                                 {balanced.length} Rombel Kelas
                               </span>
-                              <div className="text-[11px] text-slate-600 font-medium mt-0.5">
+                              <div className="text-[11px] text-slate-600 font-mono mt-0.5">
                                 {balanced.map((b) => `${b.section}: ${b.studentCount} mhs`).join(', ')}
                               </div>
                             </div>
                           ) : (
-                            <span className="text-slate-400 block py-1.5">-</span>
+                            <span className="text-slate-400 block py-1">-</span>
                           )
                         ) : (
-                          <span className="text-slate-400 italic text-[11px] block py-1.5">
+                          <span className="text-slate-400 text-[11px] block py-1">
                             Belum dicentang
                           </span>
                         )}
@@ -493,11 +491,11 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
             return (
               <div
                 key={course.id}
-                className={`p-3.5 space-y-2.5 ${
-                  isSelected ? 'bg-indigo-50/40' : 'bg-white'
+                className={`p-3 space-y-2 ${
+                  isSelected ? 'bg-slate-50' : 'bg-white'
                 }`}
               >
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-2.5">
                   <div className="pt-0.5">
                     <input
                       id={`custom-cb-mob-${course.id}`}
@@ -511,33 +509,33 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
                           course.kbkId || null
                         )
                       }
-                      className="w-5 h-5 text-indigo-600 rounded-md border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                      className="w-4 h-4 text-slate-900 rounded border-slate-300 focus:ring-slate-900 cursor-pointer"
                     />
                   </div>
                   <div className="min-w-0 flex-1">
                     <label
                       htmlFor={`custom-cb-mob-${course.id}`}
-                      className="font-bold text-slate-900 text-xs leading-snug cursor-pointer block"
+                      className="font-medium text-slate-900 text-xs leading-snug cursor-pointer block"
                     >
                       {course.name}
                     </label>
-                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                      <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded font-semibold">
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <span className="text-[10px] text-slate-600 font-mono bg-slate-100 px-1 py-0.2 rounded">
                         {course.code}
                       </span>
-                      <span className="text-[11px] font-bold text-slate-700">
+                      <span className="text-[11px] font-mono text-slate-700">
                         {course.sks} SKS
                       </span>
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                      <span className="px-1 py-0.2 rounded text-[10px] font-mono bg-slate-100 text-slate-700">
                         Sem {sem}
                       </span>
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                      <span className="px-1 py-0.2 rounded text-[10px] font-mono bg-slate-100 text-slate-700">
                         {currYear}
                       </span>
                     </div>
 
                     {isOut && (
-                      <div className="mt-2 px-2 py-1 rounded-md bg-amber-50 text-amber-800 border border-amber-300 font-bold text-[10px] flex items-center gap-1">
+                      <div className="mt-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-medium text-[10px] flex items-center gap-1">
                         <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
                         <span>Di Luar Periode Aktif (Sem {sem})</span>
                       </div>
@@ -546,15 +544,15 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
                 </div>
 
                 {isSelected && (
-                  <div className="pl-8 pt-1.5 space-y-2 border-t border-indigo-100/60 mt-1">
+                  <div className="pl-6 pt-1.5 space-y-1.5 border-t border-slate-200/60 mt-1">
                     {isPracticum ? (
-                      <div className="text-[11px] text-purple-700 font-semibold flex items-center gap-1">
-                        <span>🧪 Jadwal Khusus Praktikum Laboratorium</span>
+                      <div className="text-[11px] text-slate-500 font-medium">
+                        Jadwal Khusus Praktikum Laboratorium
                       </div>
                     ) : (
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <span className="text-xs text-slate-700 font-semibold">
+                          <span className="text-xs text-slate-700 font-medium">
                             Jumlah Mahasiswa:
                           </span>
                           <div className="flex items-center gap-1.5">
@@ -562,7 +560,7 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
                               id={`custom-input-mob-${course.id}`}
                               type="text"
                               inputMode="numeric"
-                              placeholder="Jumlah"
+                              placeholder="Kuota"
                               value={rawInput}
                               onChange={(e) =>
                                 handleStudentInputChange(course.id, e.target.value)
@@ -570,12 +568,12 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
                               onBlur={() =>
                                 handleStudentInputBlur(course.id)
                               }
-                              className={`w-24 px-2.5 py-1 text-xs rounded-xl border font-bold text-slate-900 transition-all ${
+                              className={`w-20 px-2 py-0.5 text-xs rounded border font-mono font-medium text-slate-900 transition-colors ${
                                 isRawEmpty
-                                  ? 'border-rose-400 focus:ring-2 focus:ring-rose-400 bg-rose-50/20'
+                                  ? 'border-rose-400 bg-rose-50/30'
                                   : isBelowMin
-                                  ? 'border-amber-400 focus:ring-2 focus:ring-amber-400 bg-amber-50/20'
-                                  : 'border-slate-300 focus:ring-2 focus:ring-indigo-500 bg-white'
+                                  ? 'border-amber-400 bg-amber-50/30'
+                                  : 'border-slate-300 bg-white'
                               }`}
                             />
                             <span className="text-xs text-slate-500 font-medium">mhs</span>
@@ -583,25 +581,23 @@ export const SchedulingCustomManualView: React.FC<SchedulingCustomManualViewProp
                         </div>
 
                         {isRawEmpty && (
-                          <div className="text-[10px] text-rose-600 font-semibold flex items-center gap-1">
-                            <span className="text-rose-500 font-bold">⚠</span>
-                            <span>Jumlah mahasiswa wajib diisi</span>
+                          <div className="text-[10px] text-rose-600 font-medium">
+                            Jumlah mahasiswa wajib diisi
                           </div>
                         )}
 
                         {isBelowMin && (
-                          <div className="text-[10px] text-amber-700 font-semibold flex items-center gap-1">
-                            <span className="text-amber-500 font-bold">⚠</span>
-                            <span>Minimal 10 mhs untuk membuka rombel</span>
+                          <div className="text-[10px] text-amber-700 font-medium">
+                            Minimal 10 mhs untuk membuka rombel
                           </div>
                         )}
 
                         {isValidCount && (
-                          <div className="p-2 rounded-xl bg-indigo-50/80 border border-indigo-100 text-[11px] text-indigo-950 space-y-0.5">
-                            <div className="font-bold text-indigo-900">
+                          <div className="p-2 rounded bg-slate-100 border border-slate-200 text-[11px] text-slate-800 space-y-0.5 font-mono">
+                            <div className="font-semibold text-slate-900">
                               Status: {balanced.length} Rombel Kelas
                             </div>
-                            <div className="text-slate-600 font-medium">
+                            <div className="text-slate-600">
                               {balanced.map((b) => `${b.section}: ${b.studentCount} mhs`).join(', ')}
                             </div>
                           </div>

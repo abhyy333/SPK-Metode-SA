@@ -68,22 +68,22 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
   MAX_STUDENTS_PER_CLASS,
 }) => {
   return (
-    <div className="space-y-5 animate-in fade-in duration-200">
+    <div className="space-y-4">
       {/* Top Filter & Curriculum Activation Bar */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-4">
+      <div className="bg-white rounded-md p-4 border border-slate-200 space-y-3.5">
         {/* Row 1: Academic Term & Curriculum Active Switches */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 pb-3 border-b border-slate-100">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           {/* Term Switcher */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Periode:</span>
-            <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold">
+            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Periode:</span>
+            <div className="inline-flex p-0.5 bg-slate-100 rounded-md border border-slate-200 text-xs">
               <button
                 type="button"
                 onClick={() => setAcademicTerm('ganjil')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
+                className={`px-3 py-1.5 rounded transition-all cursor-pointer ${
                   academicTerm === 'ganjil'
-                    ? 'bg-white text-indigo-900 shadow-xs font-black'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-slate-900 font-semibold shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 font-medium'
                 }`}
               >
                 Semester Ganjil (1, 3, 5, 7)
@@ -91,10 +91,10 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
               <button
                 type="button"
                 onClick={() => setAcademicTerm('genap')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
+                className={`px-3 py-1.5 rounded transition-all cursor-pointer ${
                   academicTerm === 'genap'
-                    ? 'bg-white text-indigo-900 shadow-xs font-black'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-slate-900 font-semibold shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 font-medium'
                 }`}
               >
                 Semester Genap (2, 4, 6, 8)
@@ -103,29 +103,29 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
           </div>
 
           {/* Curriculum Active/Inactive Toggles */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Status Kurikulum:</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Status Kurikulum:</span>
 
             {/* Kurikulum 2026 Toggle */}
             <button
               type="button"
               onClick={() => handleToggleCurriculumActive(2026)}
               id="toggle-curr-2026"
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs cursor-pointer ${
+              className={`flex items-center gap-2 px-2.5 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
                 curriculumAvailability[2026] !== false
                   ? 'bg-emerald-50 border-emerald-300 text-emerald-900 hover:bg-emerald-100'
-                  : 'bg-slate-50 border-slate-300 text-slate-400 hover:bg-slate-100'
+                  : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'
               }`}
             >
               <div
-                className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] text-white ${
+                className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[9px] text-white ${
                   curriculumAvailability[2026] !== false ? 'bg-emerald-600' : 'bg-slate-300'
                 }`}
               >
                 {curriculumAvailability[2026] !== false ? '✓' : '✕'}
               </div>
               <span>Kurikulum 2026 (OBE)</span>
-              <span className="text-[10px] uppercase font-bold opacity-80">
+              <span className="text-[10px] uppercase font-semibold opacity-80">
                 {curriculumAvailability[2026] !== false ? 'Aktif' : 'Nonaktif'}
               </span>
             </button>
@@ -135,21 +135,21 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
               type="button"
               onClick={() => handleToggleCurriculumActive(2022)}
               id="toggle-curr-2022"
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs cursor-pointer ${
+              className={`flex items-center gap-2 px-2.5 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
                 curriculumAvailability[2022] !== false
-                  ? 'bg-indigo-50 border-indigo-300 text-indigo-900 hover:bg-indigo-100'
-                  : 'bg-slate-50 border-slate-300 text-slate-400 hover:bg-slate-100'
+                  ? 'bg-slate-100 border-slate-300 text-slate-900 hover:bg-slate-200'
+                  : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'
               }`}
             >
               <div
-                className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] text-white ${
-                  curriculumAvailability[2022] !== false ? 'bg-indigo-600' : 'bg-slate-300'
+                className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[9px] text-white ${
+                  curriculumAvailability[2022] !== false ? 'bg-slate-700' : 'bg-slate-300'
                 }`}
               >
                 {curriculumAvailability[2022] !== false ? '✓' : '✕'}
               </div>
               <span>Kurikulum 2022</span>
-              <span className="text-[10px] uppercase font-bold opacity-80">
+              <span className="text-[10px] uppercase font-semibold opacity-80">
                 {curriculumAvailability[2022] !== false ? 'Aktif' : 'Nonaktif'}
               </span>
             </button>
@@ -157,15 +157,15 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
         </div>
 
         {/* Row 2: Semester Filter, Search, and Global Template Actions */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
           {/* Semester Filter Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+          <div className="flex items-center gap-1 overflow-x-auto py-0.5">
             <button
               type="button"
               onClick={() => setSelectedSemesterFilter('all')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                 selectedSemesterFilter === 'all'
-                  ? 'bg-indigo-600 text-white shadow-xs'
+                  ? 'bg-slate-900 text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -176,9 +176,9 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
                 key={sem}
                 type="button"
                 onClick={() => setSelectedSemesterFilter(sem)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   selectedSemesterFilter === sem
-                    ? 'bg-indigo-600 text-white shadow-xs'
+                    ? 'bg-slate-900 text-white'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
@@ -190,13 +190,13 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
           {/* Search and Bulk Selection Actions */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
               <input
                 type="text"
                 placeholder="Cari kode/nama MK..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 w-44 sm:w-56"
+                className="pl-8 pr-2.5 py-1 text-xs rounded-md border border-slate-200 bg-white focus:outline-hidden focus:border-slate-400 w-44 sm:w-52"
               />
             </div>
 
@@ -204,7 +204,7 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
               type="button"
               onClick={handleSelectAllTemplate}
               id="btn-select-all-template"
-              className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-2.5 py-1 rounded-md bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <Check className="w-3.5 h-3.5" />
               <span>Pilih Semua dari Template</span>
@@ -214,7 +214,7 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
               type="button"
               onClick={handleClearAllSelected}
               id="btn-clear-all-template"
-              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-2.5 py-1 rounded-md bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
               <span>Kosongkan Semua</span>
@@ -223,10 +223,10 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
         </div>
       </div>
 
-      {/* Summary Counter Pill */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl text-xs text-indigo-950 font-medium">
+      {/* Summary Counter */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-800 font-medium">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+          <span className="w-2 h-2 rounded-full bg-slate-600" />
           <span>
             Status Pemilihan: <strong>{totalPlannedCoursesCount} / {totalTemplateCoursesCount} MK Dipilih</strong> (
             {totalPlannedStudentsCount} Total Mahasiswa • {totalCalculatedSectionsCount} Estimasi Rombel)
@@ -238,7 +238,7 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
       </div>
 
       {/* Grouped Semester & KBK Package Cards */}
-      <div className="space-y-6">
+      <div className="space-y-5">
         {termSemesters
           .filter((sem) => selectedSemesterFilter === 'all' || selectedSemesterFilter === sem)
           .map((sem) => {
@@ -249,9 +249,9 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
               return (
                 <div
                   key={sem}
-                  className="bg-white rounded-2xl border border-slate-200 p-6 text-center space-y-2"
+                  className="bg-white rounded-md border border-slate-200 p-6 text-center space-y-1.5"
                 >
-                  <h3 className="font-bold text-sm text-slate-800">SEMESTER {sem}</h3>
+                  <h3 className="font-semibold text-xs text-slate-800 uppercase tracking-wider">SEMESTER {sem}</h3>
                   <p className="text-xs text-slate-400">
                     Tidak ada paket aktif untuk semester {sem} (kurikulum terkait dinonaktifkan).
                   </p>
@@ -260,31 +260,31 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
             }
 
             return (
-              <div key={sem} className="space-y-3">
+              <div key={sem} className="space-y-2.5">
                 {/* Semester Section Header with Quick Actions */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
-                  <div className="flex items-center gap-2.5">
-                    <div className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-black text-xs shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-0.5">
+                  <div className="flex items-center gap-2">
+                    <div className="px-2 py-0.5 rounded bg-slate-900 text-white font-semibold text-xs font-mono">
                       SEMESTER {sem}
                     </div>
                     <span className="text-xs text-slate-500 font-medium">
-                      Proyeksi Kuota Angkatan: <strong>{cohortProjection} Mahasiswa</strong>
+                      Proyeksi Kuota Angkatan: <strong className="text-slate-800">{cohortProjection} Mahasiswa</strong>
                     </span>
                   </div>
 
                   {/* Quick Bulk Actions for this semester */}
-                  <div className="flex items-center gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 text-xs">
                     <button
                       type="button"
                       onClick={() => handleBulkSelectSemester(sem, true)}
-                      className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] transition-colors cursor-pointer"
+                      className="px-2.5 py-1 rounded-md bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-medium text-xs transition-colors cursor-pointer"
                     >
                       + Pilih Semua Sem {sem}
                     </button>
                     <button
                       type="button"
                       onClick={() => handleBulkSelectSemester(sem, false)}
-                      className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-[11px] transition-colors cursor-pointer"
+                      className="px-2.5 py-1 rounded-md bg-white hover:bg-slate-50 border border-slate-200 text-slate-500 font-medium text-xs transition-colors cursor-pointer"
                     >
                       ✕ Kosongkan Sem {sem}
                     </button>
@@ -292,7 +292,7 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
                 </div>
 
                 {/* Render Packages for this semester */}
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-1 gap-3">
                   {packagesForSem.map((pkg) => {
                     const rawItems = pkg.courseItems || [];
                     const validCourses = rawItems
@@ -337,42 +337,36 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
                     return (
                       <div
                         key={pkg.id}
-                        className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden transition-all hover:border-slate-300"
+                        className="bg-white rounded-md border border-slate-200 overflow-hidden"
                       >
                         {/* Package Header Card */}
-                        <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
+                        <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                          <div className="flex items-center gap-2.5">
                             <label className="flex items-center gap-2 cursor-pointer select-none">
                               <input
                                 type="checkbox"
                                 checked={isAllPkgSelected}
                                 onChange={() => handleTogglePackage(pkg)}
-                                className="w-4 h-4 text-indigo-600 rounded-md border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                className="w-3.5 h-3.5 text-slate-900 rounded border-slate-300 focus:ring-slate-900 cursor-pointer"
                               />
-                              <div className="font-bold text-xs text-slate-900">
-                                Pilih Paket Semester {pkg.semester} — Kurikulum {pkg.curriculumYear}
+                              <div className="font-semibold text-xs text-slate-900">
+                                Paket Semester {pkg.semester} — Kurikulum {pkg.curriculumYear}
                               </div>
                             </label>
 
-                            <span
-                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                                pkg.kbkId
-                                  ? 'bg-amber-100 text-amber-900 border border-amber-200'
-                                  : 'bg-indigo-100 text-indigo-900 border border-indigo-200'
-                              }`}
-                            >
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-200 text-slate-800">
                               {kbkLabel}
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-3 text-xs">
+                          <div className="flex items-center gap-2 text-xs">
                             <span className="text-slate-500">
                               {validCourses.length} MK ({totalPkgSks} SKS)
                             </span>
                             <span className="text-slate-300">•</span>
                             <span
-                              className={`font-bold ${
-                                selectedCountInPkg > 0 ? 'text-indigo-600' : 'text-slate-400'
+                              className={`font-semibold ${
+                                selectedCountInPkg > 0 ? 'text-slate-900' : 'text-slate-400'
                               }`}
                             >
                               Terpilih: {selectedCountInPkg} / {validCourses.length}
@@ -382,15 +376,15 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
 
                         {/* Desktop Table */}
                         <div className="hidden sm:block overflow-x-auto">
-                          <table className="w-full text-left text-xs text-slate-600">
-                            <thead className="bg-slate-50/50 text-slate-500 font-bold border-b border-slate-100">
+                          <table className="w-full text-left text-xs text-slate-700">
+                            <thead className="bg-slate-50/70 text-slate-600 font-semibold border-b border-slate-200 text-[11px] uppercase tracking-wider">
                               <tr>
-                                <th className="p-3 w-12 text-center">Pilih</th>
-                                <th className="p-3">Kode & Mata Kuliah</th>
-                                <th className="p-3 w-20">SKS</th>
-                                <th className="p-3 w-28">Kategori</th>
-                                <th className="p-3 w-48">Jumlah Mahasiswa</th>
-                                <th className="p-3">Estimasi Rombel & Section</th>
+                                <th className="py-2.5 px-3 w-12 text-center">Pilih</th>
+                                <th className="py-2.5 px-3">Kode &amp; Mata Kuliah</th>
+                                <th className="py-2.5 px-3 w-16 text-center">SKS</th>
+                                <th className="py-2.5 px-3 w-28">Kategori</th>
+                                <th className="py-2.5 px-3 w-48">Jumlah Mahasiswa</th>
+                                <th className="py-2.5 px-3">Estimasi Rombel &amp; Section</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 font-medium">
@@ -416,10 +410,10 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
                                   <tr
                                     key={course.id}
                                     className={`transition-colors ${
-                                      isSelected ? 'bg-indigo-50/30 hover:bg-indigo-50/50' : 'hover:bg-slate-50/60 opacity-80'
+                                      isSelected ? 'bg-slate-50/70 hover:bg-slate-50' : 'hover:bg-slate-50/40 opacity-75'
                                     }`}
                                   >
-                                    <td className="p-3 text-center align-top">
+                                    <td className="py-2.5 px-3 text-center align-top">
                                       <input
                                         type="checkbox"
                                         id={`cb-${course.id}`}
@@ -432,14 +426,14 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
                                             kbkId
                                           )
                                         }
-                                        className="w-4 h-4 text-indigo-600 rounded-md border-slate-300 focus:ring-indigo-500 cursor-pointer mt-1"
+                                        className="w-3.5 h-3.5 text-slate-900 rounded border-slate-300 focus:ring-slate-900 cursor-pointer mt-0.5"
                                       />
                                     </td>
 
-                                    <td className="p-3 align-top">
+                                    <td className="py-2.5 px-3 align-top">
                                       <label
                                         htmlFor={`cb-${course.id}`}
-                                        className="font-bold text-slate-900 cursor-pointer hover:text-indigo-600 block text-xs"
+                                        className="font-medium text-slate-900 cursor-pointer hover:text-slate-700 block text-xs"
                                       >
                                         {course.name}
                                       </label>
@@ -448,38 +442,38 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
                                           {course.code}
                                         </span>
                                         {course.curriculumId && (
-                                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-semibold">
+                                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-mono">
                                             {course.curriculumId}
                                           </span>
                                         )}
                                       </div>
                                     </td>
 
-                                    <td className="p-3 align-top font-bold text-slate-800">
-                                      {course.sks} SKS
+                                    <td className="py-2.5 px-3 align-top text-center font-mono font-medium text-slate-800">
+                                      {course.sks}
                                     </td>
 
-                                    <td className="p-3 align-top">
+                                    <td className="py-2.5 px-3 align-top">
                                       {isPracticum ? (
-                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
                                           Praktikum
                                         </span>
                                       ) : course.category === 'Pilihan' ? (
-                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
                                           Pilihan
                                         </span>
                                       ) : (
-                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-800 border border-slate-200">
                                           Wajib
                                         </span>
                                       )}
                                     </td>
 
                                     {/* Student Count Input */}
-                                    <td className="p-3 align-top">
+                                    <td className="py-2.5 px-3 align-top">
                                       {isSelected ? (
                                         isPracticum ? (
-                                          <div className="text-[11px] text-purple-700 font-semibold py-1">
+                                          <div className="text-[11px] text-slate-500 font-medium py-1">
                                             Praktikum Lab (Otomatis)
                                           </div>
                                         ) : (
@@ -489,7 +483,7 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
                                                 id={`input-desk-${course.id}`}
                                                 type="text"
                                                 inputMode="numeric"
-                                                placeholder="Isi jumlah"
+                                                placeholder="Isi kuota"
                                                 value={rawInput}
                                                 onChange={(e) =>
                                                   handleStudentInputChange(course.id, e.target.value)
@@ -497,28 +491,26 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
                                                 onBlur={() =>
                                                   handleStudentInputBlur(course.id)
                                                 }
-                                                className={`w-28 px-2.5 py-1.5 text-xs rounded-xl border font-bold text-slate-900 transition-all ${
+                                                className={`w-24 px-2 py-1 text-xs rounded border font-mono font-medium text-slate-900 transition-colors ${
                                                   isRawEmpty
-                                                    ? 'border-rose-400 focus:ring-2 focus:ring-rose-400 bg-rose-50/20'
+                                                    ? 'border-rose-400 bg-rose-50/30'
                                                     : isBelowMin
-                                                    ? 'border-amber-400 focus:ring-2 focus:ring-amber-400 bg-amber-50/20'
-                                                    : 'border-slate-300 focus:ring-2 focus:ring-indigo-500 bg-white'
+                                                    ? 'border-amber-400 bg-amber-50/30'
+                                                    : 'border-slate-300 bg-white focus:border-slate-500 focus:outline-hidden'
                                                 }`}
                                               />
-                                              <span className="text-xs text-slate-500 font-medium">mhs</span>
+                                              <span className="text-[11px] text-slate-500 font-medium">mhs</span>
                                             </div>
 
                                             {isRawEmpty && (
-                                              <div className="text-[10px] text-rose-600 font-semibold flex items-center gap-1">
-                                                <span className="text-rose-500 font-bold">⚠</span>
+                                              <div className="text-[10px] text-rose-600 font-medium flex items-center gap-1">
                                                 <span>Wajib diisi</span>
                                               </div>
                                             )}
 
                                             {isBelowMin && (
-                                              <div className="text-[10px] text-amber-700 font-semibold flex items-center gap-1">
-                                                <span className="text-amber-500 font-bold">⚠</span>
-                                                <span>Minimal 10 mahasiswa untuk membuka kelas</span>
+                                              <div className="text-[10px] text-amber-700 font-medium flex items-center gap-1">
+                                                <span>Min. 10 mhs untuk buka kelas</span>
                                               </div>
                                             )}
                                           </div>
@@ -528,9 +520,9 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
                                           <input
                                             type="text"
                                             disabled
-                                            placeholder="Isi jumlah"
+                                            placeholder="Isi kuota"
                                             value=""
-                                            className="w-28 px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
+                                            className="w-24 px-2 py-1 text-xs rounded border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed font-mono"
                                           />
                                           <span className="text-[11px] text-slate-400">mhs</span>
                                         </div>
@@ -538,34 +530,34 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
                                     </td>
 
                                     {/* Section Breakdown Preview */}
-                                    <td className="p-3 align-top">
+                                    <td className="py-2.5 px-3 align-top">
                                       {isSelected ? (
                                         isPracticum ? (
-                                          <span className="text-purple-700 font-semibold text-[11px] block py-1.5">
+                                          <span className="text-slate-500 text-[11px] block py-1">
                                             Jadwal Khusus Lab
                                           </span>
                                         ) : isRawEmpty ? (
-                                          <span className="text-slate-400 italic text-[11px] block py-1.5">
+                                          <span className="text-slate-400 italic text-[11px] block py-1">
                                             Jumlah mahasiswa belum diisi
                                           </span>
                                         ) : isBelowMin ? (
-                                          <span className="text-rose-600 font-bold text-[11px] block py-1.5">
-                                            &lt; 10 mhs (Kelas Tidak Dibuka)
+                                          <span className="text-rose-600 font-semibold text-[11px] block py-1">
+                                            &lt; 10 mhs (Tidak Dibuka)
                                           </span>
                                         ) : isValidCount ? (
-                                          <div className="py-1">
-                                            <span className="text-indigo-700 font-bold text-xs">
+                                          <div className="py-0.5">
+                                            <span className="text-slate-900 font-semibold text-xs font-mono">
                                               {balanced.length} Rombel Kelas
                                             </span>
-                                            <div className="text-[11px] text-slate-600 font-medium mt-0.5">
+                                            <div className="text-[11px] text-slate-600 font-mono mt-0.5">
                                               {balanced.map((b) => `${b.section}: ${b.studentCount} mhs`).join(', ')}
                                             </div>
                                           </div>
                                         ) : (
-                                          <span className="text-slate-400 block py-1.5">-</span>
+                                          <span className="text-slate-400 block py-1">-</span>
                                         )
                                       ) : (
-                                        <span className="text-slate-400 italic text-[11px] block py-1.5">
+                                        <span className="text-slate-400 text-[11px] block py-1">
                                           Belum dicentang
                                         </span>
                                       )}
@@ -600,11 +592,11 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
                             return (
                               <div
                                 key={course.id}
-                                className={`p-3.5 space-y-2.5 ${
-                                  isSelected ? 'bg-indigo-50/40' : 'bg-white'
+                                className={`p-3 space-y-2 ${
+                                  isSelected ? 'bg-slate-50' : 'bg-white'
                                 }`}
                               >
-                                <div className="flex items-start gap-3">
+                                <div className="flex items-start gap-2.5">
                                   <div className="pt-0.5">
                                     <input
                                       id={`cb-mob-${course.id}`}
@@ -618,34 +610,34 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
                                           kbkId
                                         )
                                       }
-                                      className="w-5 h-5 text-indigo-600 rounded-md border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                      className="w-4 h-4 text-slate-900 rounded border-slate-300 focus:ring-slate-900 cursor-pointer"
                                     />
                                   </div>
                                   <div className="min-w-0 flex-1">
                                     <label
                                       htmlFor={`cb-mob-${course.id}`}
-                                      className="font-bold text-slate-900 text-xs leading-snug cursor-pointer block"
+                                      className="font-medium text-slate-900 text-xs leading-snug cursor-pointer block"
                                     >
                                       {course.name}
                                     </label>
-                                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                                      <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded font-semibold">
+                                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                      <span className="text-[10px] text-slate-600 font-mono bg-slate-100 px-1 py-0.2 rounded">
                                         {course.code}
                                       </span>
-                                      <span className="text-[11px] font-bold text-slate-700">
+                                      <span className="text-[11px] font-mono text-slate-700">
                                         {course.sks} SKS
                                       </span>
                                       <span className="text-slate-300">•</span>
                                       {isPracticum ? (
-                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
                                           Praktikum
                                         </span>
                                       ) : course.category === 'Pilihan' ? (
-                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
                                           Pilihan
                                         </span>
                                       ) : (
-                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-800 border border-slate-200">
                                           Wajib
                                         </span>
                                       )}
@@ -655,15 +647,15 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
 
                                 {/* Mobile Input & Status (when selected) */}
                                 {isSelected && (
-                                  <div className="pl-8 pt-1.5 space-y-2 border-t border-indigo-100/60 mt-1">
+                                  <div className="pl-6 pt-1.5 space-y-1.5 border-t border-slate-200/60 mt-1">
                                     {isPracticum ? (
-                                      <div className="text-[11px] text-purple-700 font-semibold flex items-center gap-1">
-                                        <span>🧪 Jadwal Khusus Praktikum Laboratorium</span>
+                                      <div className="text-[11px] text-slate-500 font-medium">
+                                        Jadwal Khusus Praktikum Laboratorium
                                       </div>
                                     ) : (
                                       <div className="space-y-1.5">
                                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                                          <span className="text-xs text-slate-700 font-semibold">
+                                          <span className="text-xs text-slate-700 font-medium">
                                             Jumlah Mahasiswa:
                                           </span>
                                           <div className="flex items-center gap-1.5">
@@ -671,7 +663,7 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
                                               id={`input-mob-${course.id}`}
                                               type="text"
                                               inputMode="numeric"
-                                              placeholder="Jumlah"
+                                              placeholder="Kuota"
                                               value={rawInput}
                                               onChange={(e) =>
                                                 handleStudentInputChange(course.id, e.target.value)
@@ -679,12 +671,12 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
                                               onBlur={() =>
                                                 handleStudentInputBlur(course.id)
                                               }
-                                              className={`w-24 px-2.5 py-1 text-xs rounded-xl border font-bold text-slate-900 transition-all ${
+                                              className={`w-20 px-2 py-0.5 text-xs rounded border font-mono font-medium text-slate-900 transition-colors ${
                                                 isRawEmpty
-                                                  ? 'border-rose-400 focus:ring-2 focus:ring-rose-400 bg-rose-50/20'
+                                                  ? 'border-rose-400 bg-rose-50/30'
                                                   : isBelowMin
-                                                  ? 'border-amber-400 focus:ring-2 focus:ring-amber-400 bg-amber-50/20'
-                                                  : 'border-slate-300 focus:ring-2 focus:ring-indigo-500 bg-white'
+                                                  ? 'border-amber-400 bg-amber-50/30'
+                                                  : 'border-slate-300 bg-white'
                                               }`}
                                             />
                                             <span className="text-xs text-slate-500 font-medium">mhs</span>
@@ -692,25 +684,23 @@ export const SchedulingTemplateView: React.FC<SchedulingTemplateViewProps> = ({
                                         </div>
 
                                         {isRawEmpty && (
-                                          <div className="text-[10px] text-rose-600 font-semibold flex items-center gap-1">
-                                            <span className="text-rose-500 font-bold">⚠</span>
-                                            <span>Jumlah mahasiswa wajib diisi</span>
+                                          <div className="text-[10px] text-rose-600 font-medium">
+                                            Jumlah mahasiswa wajib diisi
                                           </div>
                                         )}
 
                                         {isBelowMin && (
-                                          <div className="text-[10px] text-amber-700 font-semibold flex items-center gap-1">
-                                            <span className="text-amber-500 font-bold">⚠</span>
-                                            <span>Minimal 10 mhs untuk membuka rombel</span>
+                                          <div className="text-[10px] text-amber-700 font-medium">
+                                            Minimal 10 mhs untuk membuka rombel
                                           </div>
                                         )}
 
                                         {isValidCount && (
-                                          <div className="p-2 rounded-xl bg-indigo-50/80 border border-indigo-100 text-[11px] text-indigo-950 space-y-0.5">
-                                            <div className="font-bold text-indigo-900">
+                                          <div className="p-2 rounded bg-slate-100 border border-slate-200 text-[11px] text-slate-800 space-y-0.5 font-mono">
+                                            <div className="font-semibold text-slate-900">
                                               Status: {balanced.length} Rombel Kelas
                                             </div>
-                                            <div className="text-slate-600 font-medium">
+                                            <div className="text-slate-600">
                                               {balanced.map((b) => `${b.section}: ${b.studentCount} mhs`).join(', ')}
                                             </div>
                                           </div>

@@ -57,38 +57,38 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         <div
           key={toast.id}
           id={toast.id}
-          className={`pointer-events-auto flex items-start gap-3 p-3.5 sm:p-4 rounded-2xl border shadow-xl transition-all duration-200 bg-white/98 backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-150 ${
+          className={`pointer-events-auto flex items-start gap-2.5 p-3 rounded-md border shadow-md transition-all duration-150 bg-white animate-in fade-in slide-in-from-top-1 ${
             toast.type === 'success'
-              ? 'border-emerald-200 text-slate-800 ring-1 ring-emerald-500/10'
+              ? 'border-emerald-200 border-l-4 border-l-emerald-600 text-slate-800'
               : toast.type === 'error'
-              ? 'border-rose-200 text-slate-800 ring-1 ring-rose-500/10'
+              ? 'border-rose-200 border-l-4 border-l-rose-600 text-slate-800'
               : toast.type === 'warning'
-              ? 'border-amber-200 text-slate-800 ring-1 ring-amber-500/10'
-              : 'border-blue-200 text-slate-800 ring-1 ring-blue-500/10'
+              ? 'border-amber-200 border-l-4 border-l-amber-500 text-slate-800'
+              : 'border-slate-200 border-l-4 border-l-slate-600 text-slate-800'
           }`}
         >
           <div className="mt-0.5 shrink-0">
-            {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-600" />}
-            {toast.type === 'error' && <XCircle className="w-5 h-5 text-rose-600" />}
-            {toast.type === 'warning' && <AlertTriangle className="w-5 h-5 text-amber-600" />}
-            {toast.type === 'info' && <Info className="w-5 h-5 text-blue-600" />}
+            {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+            {toast.type === 'error' && <XCircle className="w-4 h-4 text-rose-600" />}
+            {toast.type === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-600" />}
+            {toast.type === 'info' && <Info className="w-4 h-4 text-slate-600" />}
           </div>
           <div className="flex-1 min-w-0 pr-1">
-            <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-snug whitespace-normal break-words">
+            <h4 className="text-xs font-semibold text-slate-900 leading-snug whitespace-normal break-words">
               {toast.title}
             </h4>
             {toast.message && (
-              <p className="text-[11px] sm:text-xs text-slate-600 mt-1 leading-relaxed whitespace-normal break-words [overflow-wrap:anywhere]">
+              <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed whitespace-normal break-words [overflow-wrap:anywhere]">
                 {toast.message}
               </p>
             )}
           </div>
           <button
             onClick={() => removeToast(toast.id)}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors shrink-0 -mr-1"
+            className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition-colors shrink-0 -mr-1"
             aria-label="Tutup notifikasi"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       ))}

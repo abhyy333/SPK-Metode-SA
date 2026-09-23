@@ -195,61 +195,59 @@ export const OptimizationPage: React.FC<OptimizationPageProps> = ({
   return (
     <div className="space-y-6">
       {/* Pre-SA Operational Overview Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+      <div className="bg-white rounded-md border border-slate-200 p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
-              <BookOpen className="w-4 h-4" />
-            </div>
+            <BookOpen className="w-4 h-4 text-slate-500" />
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Validasi &amp; Status Operasional Pre-SA</h3>
-              <p className="text-xs text-slate-500">
+              <h3 className="text-xs font-semibold text-slate-900 uppercase tracking-wide">Validasi &amp; Status Operasional Pre-SA</h3>
+              <p className="text-[11px] text-slate-500">
                 Audit kesiapan Course Offering dan integritas data sebelum optimasi Simulated Annealing
               </p>
             </div>
           </div>
-          <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1.5 self-start sm:self-auto">
+          <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1 self-start sm:self-auto">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
             <span>SA Invariant Guaranteed: 100% Offering Preserved</span>
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-            <span className="text-[10px] uppercase font-bold text-slate-500">Theory Offering Aktif</span>
-            <div className="text-lg font-bold text-slate-900 mt-0.5">{preSaStats.theoryCount} Rombel</div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          <div className="p-2.5 rounded-md bg-slate-50 border border-slate-200">
+            <span className="text-[10px] uppercase font-semibold text-slate-500">Theory Offering</span>
+            <div className="text-base font-semibold text-slate-900 mt-0.5">{preSaStats.theoryCount} Rombel</div>
             <span className="text-[10px] text-slate-400">Masuk jadwal utama</span>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-            <span className="text-[10px] uppercase font-bold text-slate-500">Praktikum Excluded</span>
-            <div className="text-lg font-bold text-amber-700 mt-0.5">{preSaStats.practicumCount} Praktikum</div>
+          <div className="p-2.5 rounded-md bg-slate-50 border border-slate-200">
+            <span className="text-[10px] uppercase font-semibold text-slate-500">Praktikum</span>
+            <div className="text-base font-semibold text-slate-900 mt-0.5">{preSaStats.practicumCount} Praktikum</div>
             <span className="text-[10px] text-slate-400">Jadwal lab mandiri</span>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-            <span className="text-[10px] uppercase font-bold text-slate-500">Pilihan Ditutup (&lt;10)</span>
-            <div className="text-lg font-bold text-slate-700 mt-0.5">{preSaStats.closedElectivesCount} MK</div>
+          <div className="p-2.5 rounded-md bg-slate-50 border border-slate-200">
+            <span className="text-[10px] uppercase font-semibold text-slate-500">Pilihan Ditutup (&lt;10)</span>
+            <div className="text-base font-semibold text-slate-700 mt-0.5">{preSaStats.closedElectivesCount} MK</div>
             <span className="text-[10px] text-slate-400">Enrollment minim</span>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-            <span className="text-[10px] uppercase font-bold text-slate-500">Total Sections (Rombel)</span>
-            <div className="text-lg font-bold text-indigo-700 mt-0.5">{preSaStats.activeSectionCount} Kelas</div>
+          <div className="p-2.5 rounded-md bg-slate-50 border border-slate-200">
+            <span className="text-[10px] uppercase font-semibold text-slate-500">Total Sections</span>
+            <div className="text-base font-semibold text-slate-900 mt-0.5">{preSaStats.activeSectionCount} Kelas</div>
             <span className="text-[10px] text-slate-400">Max 40 Mhs/kelas</span>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-            <span className="text-[10px] uppercase font-bold text-slate-500">Belum Ada Dosen</span>
-            <div className={`text-lg font-bold mt-0.5 ${preSaStats.unassignedLecturers > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+          <div className="p-2.5 rounded-md bg-slate-50 border border-slate-200">
+            <span className="text-[10px] uppercase font-semibold text-slate-500">Belum Ada Dosen</span>
+            <div className={`text-base font-semibold mt-0.5 ${preSaStats.unassignedLecturers > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
               {preSaStats.unassignedLecturers} Rombel
             </div>
             <span className="text-[10px] text-slate-400">Dosen di Offering</span>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-            <span className="text-[10px] uppercase font-bold text-slate-500">Belum Ada Ruangan</span>
-            <div className={`text-lg font-bold mt-0.5 ${preSaStats.unassignedRooms > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+          <div className="p-2.5 rounded-md bg-slate-50 border border-slate-200">
+            <span className="text-[10px] uppercase font-semibold text-slate-500">Belum Ada Ruang</span>
+            <div className={`text-base font-semibold mt-0.5 ${preSaStats.unassignedRooms > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
               {preSaStats.unassignedRooms} Rombel
             </div>
             <span className="text-[10px] text-slate-400">Dialokasikan SA</span>
@@ -258,15 +256,13 @@ export const OptimizationPage: React.FC<OptimizationPageProps> = ({
       </div>
 
       {/* Parameter Control Panel */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+      <div className="bg-white rounded-md border border-slate-200 p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
-              <Sliders className="w-4 h-4" />
-            </div>
+            <Sliders className="w-4 h-4 text-slate-500" />
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Parameter Simulated Annealing</h3>
-              <p className="text-xs text-slate-500">
+              <h3 className="text-xs font-semibold text-slate-900 uppercase tracking-wide">Parameter Simulated Annealing</h3>
+              <p className="text-[11px] text-slate-500">
                 Konfigurasi temperatur pendinginan dan laju mutasi algoritma
               </p>
             </div>
@@ -277,38 +273,38 @@ export const OptimizationPage: React.FC<OptimizationPageProps> = ({
               onClick={onGenerateInitial}
               id="btn-opt-generate-initial"
               disabled={isOptimizing}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors disabled:opacity-50"
             >
-              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Generate Initial Schedule</span>
+              <Sparkles className="w-3.5 h-3.5 text-slate-500" />
+              <span>Generate Initial</span>
             </button>
 
             {!isOptimizing ? (
               <button
                 onClick={handleStartOpt}
                 id="btn-opt-run-sa"
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-colors"
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
-                <span>Run Simulated Annealing</span>
+                <span>Jalankan Optimasi</span>
               </button>
             ) : (
               <button
                 onClick={onStopOptimization}
                 id="btn-opt-stop-sa"
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium transition-colors"
               >
                 <Square className="w-3.5 h-3.5 fill-current" />
-                <span>Stop Algoritma</span>
+                <span>Stop Optimasi</span>
               </button>
             )}
           </div>
         </div>
 
         {/* Form Inputs Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 pt-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+            <label className="block text-[11px] font-medium text-slate-700 mb-1">
               Initial Temp (T₀)
             </label>
             <input
@@ -320,13 +316,13 @@ export const OptimizationPage: React.FC<OptimizationPageProps> = ({
               value={initTemp}
               onChange={e => setInitTemp(Number(e.target.value))}
               onBlur={handleApplyParams}
-              className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 font-mono focus:ring-2 focus:ring-indigo-500/20"
+              className="w-full px-2.5 py-1.5 text-xs rounded-md border border-slate-200 font-mono focus:border-slate-400 focus:outline-hidden"
             />
             <span className="text-[10px] text-slate-400">Default: 1000</span>
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+            <label className="block text-[11px] font-medium text-slate-700 mb-1">
               Min Temp (Tₘᵢₙ)
             </label>
             <input
@@ -338,13 +334,13 @@ export const OptimizationPage: React.FC<OptimizationPageProps> = ({
               value={minTemp}
               onChange={e => setMinTemp(Number(e.target.value))}
               onBlur={handleApplyParams}
-              className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 font-mono focus:ring-2 focus:ring-indigo-500/20"
+              className="w-full px-2.5 py-1.5 text-xs rounded-md border border-slate-200 font-mono focus:border-slate-400 focus:outline-hidden"
             />
             <span className="text-[10px] text-slate-400">Default: 0.1</span>
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+            <label className="block text-[11px] font-medium text-slate-700 mb-1">
               Cooling Rate (α)
             </label>
             <input
@@ -356,13 +352,13 @@ export const OptimizationPage: React.FC<OptimizationPageProps> = ({
               value={coolingRate}
               onChange={e => setCoolingRate(Number(e.target.value))}
               onBlur={handleApplyParams}
-              className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 font-mono focus:ring-2 focus:ring-indigo-500/20"
+              className="w-full px-2.5 py-1.5 text-xs rounded-md border border-slate-200 font-mono focus:border-slate-400 focus:outline-hidden"
             />
             <span className="text-[10px] text-slate-400">Default: 0.995</span>
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+            <label className="block text-[11px] font-medium text-slate-700 mb-1">
               Max Iterations (N)
             </label>
             <input
@@ -374,13 +370,13 @@ export const OptimizationPage: React.FC<OptimizationPageProps> = ({
               value={maxIter}
               onChange={e => setMaxIter(Number(e.target.value))}
               onBlur={handleApplyParams}
-              className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 font-mono focus:ring-2 focus:ring-indigo-500/20"
+              className="w-full px-2.5 py-1.5 text-xs rounded-md border border-slate-200 font-mono focus:border-slate-400 focus:outline-hidden"
             />
             <span className="text-[10px] text-slate-400">Default: 5000</span>
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+            <label className="block text-[11px] font-medium text-slate-700 mb-1">
               Mutation Rate
             </label>
             <input
@@ -392,7 +388,7 @@ export const OptimizationPage: React.FC<OptimizationPageProps> = ({
               value={mutationRate}
               onChange={e => setMutationRate(Number(e.target.value))}
               onBlur={handleApplyParams}
-              className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 font-mono focus:ring-2 focus:ring-indigo-500/20"
+              className="w-full px-2.5 py-1.5 text-xs rounded-md border border-slate-200 font-mono focus:border-slate-400 focus:outline-hidden"
             />
             <span className="text-[10px] text-slate-400">Default: 0.20</span>
           </div>
@@ -400,51 +396,51 @@ export const OptimizationPage: React.FC<OptimizationPageProps> = ({
       </div>
 
       {/* Realtime / Live Metrics Dashboard */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="text-[10px] uppercase font-bold text-slate-400">Iterasi</div>
-          <div className="text-xl font-bold font-mono text-slate-900 mt-1">
-            {displayIteration} <span className="text-xs text-slate-400">/ {maxIter}</span>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        <div className="bg-white p-3 rounded-md border border-slate-200">
+          <div className="text-[10px] uppercase font-medium text-slate-500">Iterasi</div>
+          <div className="text-lg font-semibold font-mono text-slate-900 mt-0.5">
+            {displayIteration} <span className="text-xs text-slate-400 font-normal">/ {maxIter}</span>
           </div>
           {isOptimizing && (
-            <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
+            <div className="w-full bg-slate-100 rounded-full h-1 mt-2 overflow-hidden">
               <div
-                className="bg-indigo-600 h-1.5 rounded-full transition-all"
+                className="bg-slate-900 h-1 rounded-full transition-all"
                 style={{ width: `${liveProgressData?.progressPercentage || 0}%` }}
               ></div>
             </div>
           )}
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="text-[10px] uppercase font-bold text-slate-400">Temperatur (T)</div>
-          <div className="text-xl font-bold font-mono text-amber-600 mt-1 flex items-center gap-1">
-            <Thermometer className="w-4 h-4 text-amber-500" />
+        <div className="bg-white p-3 rounded-md border border-slate-200">
+          <div className="text-[10px] uppercase font-medium text-slate-500">Temperatur (T)</div>
+          <div className="text-lg font-semibold font-mono text-amber-700 mt-0.5 flex items-center gap-1">
+            <Thermometer className="w-3.5 h-3.5 text-amber-600" />
             {displayTemperature}
           </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">T_min: {minTemp}</div>
+          <div className="text-[10px] text-slate-400 mt-0.5 font-mono">T_min: {minTemp}</div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="text-[10px] uppercase font-bold text-slate-400">Current Cost</div>
-          <div className="text-xl font-bold font-mono text-slate-800 mt-1">
+        <div className="bg-white p-3 rounded-md border border-slate-200">
+          <div className="text-[10px] uppercase font-medium text-slate-500">Current Cost</div>
+          <div className="text-lg font-semibold font-mono text-slate-800 mt-0.5">
             {displayCurrentCost}
           </div>
           <div className="text-[10px] text-slate-400 mt-0.5">Solusi Berjalan</div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="text-[10px] uppercase font-bold text-slate-400">Best Cost (Global)</div>
-          <div className="text-xl font-bold font-mono text-indigo-700 mt-1">
+        <div className="bg-white p-3 rounded-md border border-slate-200">
+          <div className="text-[10px] uppercase font-medium text-slate-500">Best Cost (Global)</div>
+          <div className="text-lg font-semibold font-mono text-slate-900 mt-0.5">
             {displayBestCost}
           </div>
-          <div className="text-[10px] text-indigo-500 mt-0.5 font-medium">Nilai Minimum</div>
+          <div className="text-[10px] text-slate-500 mt-0.5">Nilai Minimum</div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="text-[10px] uppercase font-bold text-slate-400">Konflik Terbaik</div>
-          <div className="text-xl font-bold font-mono text-emerald-600 mt-1 flex items-center gap-1">
-            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+        <div className="bg-white p-3 rounded-md border border-slate-200">
+          <div className="text-[10px] uppercase font-medium text-slate-500">Konflik Terbaik</div>
+          <div className="text-lg font-semibold font-mono text-emerald-700 mt-0.5 flex items-center gap-1">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
             {displayConflicts}
           </div>
           <div className="text-[10px] text-slate-400 mt-0.5">
@@ -452,18 +448,18 @@ export const OptimizationPage: React.FC<OptimizationPageProps> = ({
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="text-[10px] uppercase font-bold text-slate-400">Status Proses</div>
+        <div className="bg-white p-3 rounded-md border border-slate-200">
+          <div className="text-[10px] uppercase font-medium text-slate-500">Status Proses</div>
           <div className="mt-1">
             {isOptimizing ? (
-              <Badge variant="warning" size="sm" className="animate-pulse">
+              <Badge variant="warning" size="sm">
                 <RefreshCw className="w-3 h-3 animate-spin" />
                 Optimasi Berjalan
               </Badge>
             ) : activeOptimizationResult ? (
               <Badge variant="success" size="sm">
                 <CheckCircle2 className="w-3 h-3" />
-                Optimasi Selesai
+                Selesai
               </Badge>
             ) : (
               <Badge variant="neutral" size="sm">

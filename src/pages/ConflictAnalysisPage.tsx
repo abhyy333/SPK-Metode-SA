@@ -93,49 +93,57 @@ export const ConflictAnalysisPage: React.FC<ConflictAnalysisPageProps> = ({
         )}
       </div>
 
-      {/* Summary Badges */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
+      {/* Summary Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-white p-3.5 rounded-md border border-slate-200 flex items-center justify-between">
           <div>
-            <div className="text-xs font-semibold text-slate-500">Total Konflik Terdeteksi</div>
-            <div className="text-2xl font-bold text-slate-900 mt-1">{conflicts.length}</div>
+            <div className="text-[11px] font-medium text-slate-500">Total Pelanggaran</div>
+            <div className="text-xl font-semibold text-slate-900 mt-0.5">{conflicts.length}</div>
           </div>
-          <div className="p-3 rounded-xl bg-slate-100 text-slate-600">
-            <AlertTriangle className="w-5 h-5" />
+          <div className="text-xs text-slate-400 font-mono">
+            {conflicts.length === 0 ? 'Semua Beres' : `${conflicts.length} Catatan`}
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-rose-200 bg-rose-50/30 shadow-2xs flex items-center justify-between">
+        <div className="bg-white p-3.5 rounded-md border border-slate-200 flex items-center justify-between">
           <div>
-            <div className="text-xs font-semibold text-rose-700">Hard Constraints (C1 - C5)</div>
-            <div className="text-2xl font-bold text-rose-700 mt-1">{hardCount}</div>
-            <div className="text-[10px] text-rose-500">Bentrokan Dosen, Ruang, Kapasitas</div>
+            <div className="text-[11px] font-medium text-slate-500">Hard Conflict (Fatal)</div>
+            <div className={`text-xl font-semibold mt-0.5 ${hardCount > 0 ? 'text-rose-600 font-bold' : 'text-slate-900'}`}>
+              {hardCount}
+            </div>
+            <div className="text-[10px] text-slate-400 mt-0.5">Bentrokan Dosen, Ruang, Kapasitas</div>
           </div>
-          <div className="p-3 rounded-xl bg-rose-100 text-rose-600">
-            <AlertTriangle className="w-5 h-5" />
-          </div>
+          {hardCount > 0 && (
+            <span className="px-2 py-0.5 text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 rounded">
+              Wajib Dibenahi
+            </span>
+          )}
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-amber-200 bg-amber-50/30 shadow-2xs flex items-center justify-between">
+        <div className="bg-white p-3.5 rounded-md border border-slate-200 flex items-center justify-between">
           <div>
-            <div className="text-xs font-semibold text-amber-800">Soft Constraints (Preferensi)</div>
-            <div className="text-2xl font-bold text-amber-800 mt-1">{softCount}</div>
-            <div className="text-[10px] text-amber-600">Waktu, Hari & Distribusi</div>
+            <div className="text-[11px] font-medium text-slate-500">Soft Warning (Preferensi)</div>
+            <div className={`text-xl font-semibold mt-0.5 ${softCount > 0 ? 'text-amber-700' : 'text-slate-900'}`}>
+              {softCount}
+            </div>
+            <div className="text-[10px] text-slate-400 mt-0.5">Waktu & Pola Distribusi</div>
           </div>
-          <div className="p-3 rounded-xl bg-amber-100 text-amber-600">
-            <Filter className="w-5 h-5" />
-          </div>
+          {softCount > 0 && (
+            <span className="px-2 py-0.5 text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200 rounded">
+              Dapat Ditoleransi
+            </span>
+          )}
         </div>
       </div>
 
       {/* Filter Toolbar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white p-2.5 sm:p-3 rounded-md border border-slate-200 flex flex-wrap items-center justify-between gap-2.5 text-xs">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-700">Filter Tampilan:</span>
+          <span className="text-slate-500 text-[11px]">Filter:</span>
           <select
             value={filterType}
             onChange={e => setFilterType(e.target.value)}
-            className="text-xs px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
+            className="text-xs px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-700"
           >
             <option value="all">Semua Batasan ({conflicts.length})</option>
             <option value="hard">Hanya Hard Constraints ({hardCount})</option>
@@ -145,7 +153,7 @@ export const ConflictAnalysisPage: React.FC<ConflictAnalysisPageProps> = ({
           <select
             value={filterSeverity}
             onChange={e => setFilterSeverity(e.target.value)}
-            className="text-xs px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
+            className="text-xs px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-700"
           >
             <option value="all">Semua Tingkat Severity</option>
             <option value="high">High</option>
@@ -155,24 +163,24 @@ export const ConflictAnalysisPage: React.FC<ConflictAnalysisPageProps> = ({
         </div>
 
         <div className="text-xs text-slate-500 font-medium">
-          Menampilkan <span className="font-bold text-slate-900">{filteredConflicts.length}</span> konflik
+          Menampilkan <span className="font-semibold text-slate-900">{filteredConflicts.length}</span> konflik
         </div>
       </div>
 
       {/* Interactive Conflict Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+      <div className="bg-white rounded-md border border-slate-200 overflow-hidden">
         {filteredConflicts.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-600">
-              <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                 <tr>
-                  <th className="px-3 py-3 text-center w-12">No</th>
-                  <th className="px-4 py-3">Jenis Konflik</th>
-                  <th className="px-4 py-3">Jadwal 1 (Terlibat)</th>
-                  <th className="px-4 py-3">Jadwal 2 (Bentrokan)</th>
-                  <th className="px-4 py-3">Detail Pelanggaran</th>
-                  <th className="px-3 py-3 text-center">Severity</th>
-                  <th className="px-3 py-3 text-right">Aksi</th>
+                  <th className="px-3 py-2.5 text-center w-12">No</th>
+                  <th className="px-3.5 py-2.5">Jenis Bentrok</th>
+                  <th className="px-3.5 py-2.5">Jadwal 1</th>
+                  <th className="px-3.5 py-2.5">Jadwal 2</th>
+                  <th className="px-3.5 py-2.5">Detail Pelanggaran</th>
+                  <th className="px-3 py-2.5 text-center">Tingkat</th>
+                  <th className="px-3 py-2.5 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -181,37 +189,34 @@ export const ConflictAnalysisPage: React.FC<ConflictAnalysisPageProps> = ({
                   const assign2 = c.assignment2Id ? assignmentMap.get(c.assignment2Id) : undefined;
                   const course1 = assign1 ? courseMap.get(assign1.courseId) : undefined;
                   const course2 = assign2 ? courseMap.get(assign2.courseId) : undefined;
-                  const slot1 = assign1 ? timeslotMap.get(assign1.timeslotId) : undefined;
-                  const room1 = assign1 ? roomMap.get(assign1.roomId) : undefined;
 
                   return (
                     <tr
                       key={c.id}
                       onClick={() => setSelectedConflict(c)}
-                      className="hover:bg-slate-50/80 cursor-pointer transition-colors"
+                      className="hover:bg-slate-50 cursor-pointer transition-colors"
                     >
-                      <td className="px-3 py-3.5 text-center font-mono font-semibold text-slate-400">
+                      <td className="px-3 py-2.5 text-center font-mono text-slate-400">
                         {index + 1}
                       </td>
-                      <td className="px-4 py-3.5">
-                        <div className="font-bold text-slate-900">{c.categoryName}</div>
+                      <td className="px-3.5 py-2.5">
+                        <div className="font-semibold text-slate-900">{c.categoryName}</div>
                         <div className="text-[10px] text-slate-400">
-                          {c.isHardConstraint ? 'Hard Constraint' : 'Soft Constraint'} • Penalty:{' '}
-                          {c.penalty}
+                          {c.isHardConstraint ? 'Hard' : 'Soft'} • Penalti: {c.penalty}
                         </div>
                       </td>
-                      <td className="px-4 py-3.5">
-                        <div className="font-semibold text-slate-800">
+                      <td className="px-3.5 py-2.5">
+                        <div className="font-medium text-slate-800">
                           {course1?.code || c.course1Name || '-'}
                         </div>
                         <div className="text-[10px] text-slate-500 line-clamp-1">
                           {course1?.name || c.course1Name || '-'}
                         </div>
                       </td>
-                      <td className="px-4 py-3.5">
+                      <td className="px-3.5 py-2.5">
                         {c.course2Name || course2 ? (
                           <>
-                            <div className="font-semibold text-slate-800">
+                            <div className="font-medium text-slate-800">
                               {course2?.code || c.course2Name}
                             </div>
                             <div className="text-[10px] text-slate-500 line-clamp-1">
@@ -219,18 +224,18 @@ export const ConflictAnalysisPage: React.FC<ConflictAnalysisPageProps> = ({
                             </div>
                           </>
                         ) : (
-                          <span className="text-slate-400 text-[11px]">— (Tunggal)</span>
+                          <span className="text-slate-400 text-[11px]">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3.5 max-w-xs">
+                      <td className="px-3.5 py-2.5 max-w-xs">
                         <p className="text-[11px] text-slate-700 line-clamp-2">{c.description}</p>
                         {c.involvedEntities.timeslotLabel && (
-                          <span className="inline-block mt-0.5 text-[10px] font-mono text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                          <span className="inline-block mt-0.5 text-[10px] font-mono text-slate-600 bg-slate-100 px-1 py-0.5 rounded">
                             {c.involvedEntities.timeslotLabel}
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-3.5 text-center whitespace-nowrap">
+                      <td className="px-3 py-2.5 text-center whitespace-nowrap">
                         <Badge
                           variant={
                             c.severity === 'high'
@@ -244,16 +249,15 @@ export const ConflictAnalysisPage: React.FC<ConflictAnalysisPageProps> = ({
                           {c.severity.toUpperCase()}
                         </Badge>
                       </td>
-                      <td className="px-3 py-3.5 text-right whitespace-nowrap">
+                      <td className="px-3 py-2.5 text-right whitespace-nowrap">
                         <button
                           onClick={e => {
                             e.stopPropagation();
                             setSelectedConflict(c);
                           }}
-                          className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                          title="Lihat Detail Konflik"
+                          className="px-2 py-1 text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded border border-slate-200 transition-colors"
                         >
-                          <Eye className="w-4 h-4" />
+                          Detail
                         </button>
                       </td>
                     </tr>
@@ -263,12 +267,11 @@ export const ConflictAnalysisPage: React.FC<ConflictAnalysisPageProps> = ({
             </table>
           </div>
         ) : (
-          <div className="py-14 text-center">
-            <ShieldCheck className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-            <p className="text-sm font-bold text-slate-900">Tidak Ditemukan Konflik!</p>
+          <div className="py-12 text-center">
+            <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+            <p className="text-sm font-semibold text-slate-900">Tidak ditemukan bentrok jadwal (0 Hard Conflict)</p>
             <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-              Semua aturan hard constraints dan soft constraints telah terpenuhi dengan baik pada solusi
-              jadwal aktif.
+              Seluruh batasan wajib akademik dan preferensi dosen telah terpenuhi dengan baik.
             </p>
           </div>
         )}

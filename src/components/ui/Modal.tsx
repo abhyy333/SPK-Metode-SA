@@ -81,24 +81,24 @@ export const Modal: React.FC<ModalProps> = ({
         aria-hidden="true"
       />
       <div
-        className={`relative w-full ${chosenWidth} max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-2rem)] sm:max-h-[85vh] bg-white rounded-2xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-150 my-auto`}
+        className={`relative w-full ${chosenWidth} max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-2rem)] sm:max-h-[85vh] bg-white rounded-lg border border-slate-200 shadow-lg flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-150 my-auto`}
       >
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 bg-slate-50/70 shrink-0">
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-slate-200 bg-white shrink-0">
           <div>
-            <h3 id="modal-title" className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
+            <h3 id="modal-title" className="text-sm sm:text-base font-semibold text-slate-900 leading-snug">
               {title}
             </h3>
             {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors shrink-0 -mr-1"
+            className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 transition-colors shrink-0 -mr-1"
             aria-label="Tutup dialog"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1 overscroll-contain">
+        <div className="p-4 sm:p-5 overflow-y-auto flex-1 overscroll-contain">
           {children}
         </div>
       </div>

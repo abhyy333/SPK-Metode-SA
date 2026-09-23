@@ -537,22 +537,22 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
   return (
     <div className="space-y-6">
       {/* 1. Header Card */}
-      <div className="bg-white rounded-xl border border-slate-200/80 p-5 sm:p-6 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white rounded-md border border-slate-200 p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
                 Jadwal Diterbitkan (Resmi)
               </span>
               <span className="text-xs text-slate-400">•</span>
-              <span className="text-xs text-slate-500 font-medium">Tahun Akademik {academicYear}</span>
+              <span className="text-xs text-slate-600 font-medium">Tahun Akademik {academicYear}</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
               Jadwal Diterbitkan Jurusan Teknik Elektro
             </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Portal publikasi resmi jadwal perkuliahan dan ujian untuk seluruh civitas akademika UNRAM.
+            <p className="text-xs text-slate-500 mt-0.5">
+              Portal publikasi resmi jadwal perkuliahan dan ujian untuk civitas akademika UNRAM.
             </p>
           </div>
 
@@ -566,22 +566,22 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
         </div>
 
         {/* Primary Tabs: [ Jadwal Perkuliahan ] vs [ Jadwal Ujian ] */}
-        <div className="mt-6 border-b border-slate-200 flex items-center justify-between">
+        <div className="mt-5 border-b border-slate-200 flex items-center justify-between">
           <div className="flex space-x-6">
             <button
               type="button"
               id="tab-published-kuliah"
               onClick={() => setActiveMainTab('kuliah')}
-              className={`pb-3 text-sm font-bold transition-all relative ${
+              className={`pb-2.5 text-xs font-semibold transition-colors relative cursor-pointer ${
                 activeMainTab === 'kuliah'
-                  ? 'text-emerald-700 border-b-2 border-emerald-600'
+                  ? 'text-slate-900 border-b-2 border-slate-900'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
+              <div className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5" />
                 <span>Jadwal Perkuliahan</span>
-                <span className="ml-1.5 px-2 py-0.5 text-[11px] font-semibold rounded-full bg-slate-100 text-slate-700">
+                <span className="ml-1 px-1.5 py-0.2 text-[10px] font-medium rounded bg-slate-100 text-slate-700">
                   {filteredLectureAssignments.length} Sesi
                 </span>
               </div>
@@ -591,17 +591,17 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
               type="button"
               id="tab-published-ujian"
               onClick={() => setActiveMainTab('ujian')}
-              className={`pb-3 text-sm font-bold transition-all relative ${
+              className={`pb-2.5 text-xs font-semibold transition-colors relative cursor-pointer ${
                 activeMainTab === 'ujian'
-                  ? 'text-emerald-700 border-b-2 border-emerald-600'
+                  ? 'text-slate-900 border-b-2 border-slate-900'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              <div className="flex items-center gap-2">
-                <GraduationCap className="w-4 h-4" />
+              <div className="flex items-center gap-1.5">
+                <GraduationCap className="w-3.5 h-3.5" />
                 <span>Jadwal Ujian</span>
-                <span className="ml-1.5 px-2 py-0.5 text-[11px] font-semibold rounded-full bg-slate-100 text-slate-700">
-                  UTS & UAS
+                <span className="ml-1 px-1.5 py-0.2 text-[10px] font-medium rounded bg-slate-100 text-slate-700">
+                  UTS &amp; UAS
                 </span>
               </div>
             </button>
@@ -609,14 +609,14 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
 
           {/* Sub-Tabs when in Jadwal Ujian: [ UTS ] [ UAS ] */}
           {activeMainTab === 'ujian' && (
-            <div className="flex items-center gap-1 pb-2">
+            <div className="flex items-center gap-1 pb-1.5">
               <button
                 type="button"
                 id="btn-published-subtab-uts"
                 onClick={() => setActiveExamSubTab('UTS')}
-                className={`px-3 py-1 rounded text-xs font-bold transition-colors ${
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
                   activeExamSubTab === 'UTS'
-                    ? 'bg-emerald-600 text-white shadow-xs'
+                    ? 'bg-slate-900 text-white'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
@@ -626,9 +626,9 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
                 type="button"
                 id="btn-published-subtab-uas"
                 onClick={() => setActiveExamSubTab('UAS')}
-                className={`px-3 py-1 rounded text-xs font-bold transition-colors ${
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
                   activeExamSubTab === 'UAS'
-                    ? 'bg-emerald-600 text-white shadow-xs'
+                    ? 'bg-slate-900 text-white'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
@@ -639,8 +639,8 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
         </div>
       </div>
 
-      {/* 2. Version Selector Toolbar (Admin can switch version, publish, or Ganti Jadwal) */}
-      <div className="bg-white rounded-xl border border-slate-200/80 p-3 shadow-xs">
+      {/* 2. Version Selector Toolbar */}
+      <div className="bg-white rounded-md border border-slate-200 p-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex-1">
             {activeMainTab === 'kuliah' ? (
@@ -679,8 +679,8 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
                 type="button"
                 id="btn-replace-schedule"
                 onClick={handleOpenReplaceModal}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg shadow-xs transition-colors cursor-pointer"
-                title="Ganti atau buat versi baru jadwal perkuliahan dari jadwal simulasi atau kloning"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-md transition-colors cursor-pointer"
+                title="Ganti atau buat versi baru jadwal perkuliahan"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Ganti / Buat Versi Baru</span>
@@ -691,17 +691,17 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
       </div>
 
       {/* 3. Comprehensive Filters */}
-      <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-xs">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="bg-white rounded-md border border-slate-200 p-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
           {/* Semester */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
               Semester
             </label>
             <select
               value={selectedSemester}
               onChange={(e) => setSelectedSemester(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+              className="w-full bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:outline-hidden focus:border-slate-400"
             >
               <option value="all">Semua Semester</option>
               <option value="1">Semester 1 (2026)</option>
@@ -713,15 +713,15 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
 
           {/* KBK */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
               KBK
             </label>
             <select
               value={selectedKbk}
               onChange={(e) => setSelectedKbk(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+              className="w-full bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:outline-hidden focus:border-slate-400"
             >
-              <option value="all">Semua KBK & Wajib</option>
+              <option value="all">Semua KBK &amp; Wajib</option>
               {kbks.map((k) => (
                 <option key={k.id} value={k.id}>
                   {k.name}
@@ -732,13 +732,13 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
 
           {/* Dosen */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-              Dosen Pengampu / Pengawas
+            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+              Dosen Pengampu
             </label>
             <select
               value={selectedLecturerId}
               onChange={(e) => setSelectedLecturerId(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+              className="w-full bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:outline-hidden focus:border-slate-400 truncate"
             >
               <option value="all">Semua Dosen</option>
               {lecturers.map((l) => (
@@ -751,13 +751,13 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
 
           {/* Ruangan */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
               Ruangan
             </label>
             <select
               value={selectedRoomId}
               onChange={(e) => setSelectedRoomId(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+              className="w-full bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:outline-hidden focus:border-slate-400"
             >
               <option value="all">Semua Ruangan</option>
               {rooms.map((r) => (
@@ -770,17 +770,17 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
 
           {/* Search Query */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
               Cari Cepat
             </label>
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Kode, MK, dosen, ruang..."
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg pl-7 pr-2.5 py-1.5 text-xs font-medium text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                className="w-full bg-white border border-slate-200 rounded-md pl-8 pr-2.5 py-1.5 text-xs font-medium text-slate-800 focus:outline-hidden focus:border-slate-400"
               />
             </div>
           </div>
@@ -789,25 +789,25 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
 
       {/* 4. Special KKN Callout & Policy Detail */}
       {isKknRelevant && (
-        <div className="bg-sky-50 border border-sky-200 rounded-xl p-4.5 text-sky-950 shadow-xs space-y-3">
+        <div className="bg-slate-50 border border-slate-200 rounded-md p-3.5 text-slate-800 space-y-2.5">
           <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-sky-100 text-sky-700 shrink-0">
-                <Info className="w-5 h-5" />
+            <div className="flex items-start gap-2.5">
+              <div className="p-1.5 rounded bg-slate-200/70 text-slate-700 shrink-0">
+                <Info className="w-4 h-4" />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-sm font-bold text-sky-950">
+                  <h2 className="text-xs font-semibold text-slate-900">
                     Perlakuan Khusus: Kuliah Kerja Nyata (KKN)
                   </h2>
-                  <span className="text-[11px] font-semibold bg-sky-200/90 text-sky-900 px-2 py-0.5 rounded">
-                    4 SKS • Semester 7 • Seluruh KBK
+                  <span className="text-[10px] font-medium bg-slate-200 text-slate-800 px-1.5 py-0.2 rounded font-mono">
+                    4 SKS • Semester 7
                   </span>
-                  <span className="text-[11px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
+                  <span className="text-[10px] font-medium bg-emerald-50 text-emerald-800 px-1.5 py-0.2 rounded border border-emerald-200">
                     Non-Tatap Muka Jurusan
                   </span>
                 </div>
-                <p className="text-xs text-sky-800 leading-relaxed">
+                <p className="text-[11px] text-slate-600 leading-relaxed">
                   Mata kuliah KKN (MPK1077101 / FBS4142) diatur secara terpusat oleh <strong>LPPM Universitas Mataram</strong>. Pelaksanaan dilakukan di lapangan (desa binaan) dan tidak menggunakan slot ruangan kelas reguler.
                 </p>
               </div>
@@ -815,40 +815,40 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
             <button
               type="button"
               onClick={() => setIsKknDetailOpen((prev) => !prev)}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-sky-800 hover:text-sky-950 bg-sky-100/80 hover:bg-sky-200/80 px-2.5 py-1 rounded-lg transition-colors shrink-0"
+              className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-2 py-1 rounded transition-colors shrink-0"
             >
-              <span>{isKknDetailOpen ? 'Tutup Panduan' : 'Panduan Lengkap'}</span>
+              <span>{isKknDetailOpen ? 'Tutup Panduan' : 'Panduan'}</span>
               {isKknDetailOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
           </div>
 
           {isKknDetailOpen && (
-            <div className="pt-2 border-t border-sky-200/60 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-sky-900">
-              <div className="bg-white/80 rounded-lg p-3 border border-sky-200">
-                <div className="font-bold text-sky-950 mb-1 flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-sky-700" />
-                  <span>Pengelola & Lokasi</span>
+            <div className="pt-2 border-t border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs text-slate-700">
+              <div className="bg-white rounded p-2.5 border border-slate-200">
+                <div className="font-semibold text-slate-900 mb-0.5 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Pengelola &amp; Lokasi</span>
                 </div>
-                <p className="text-[11px] text-sky-800 leading-normal">
-                  Dikelola penuh oleh Lembaga Penelitian dan Pengabdian kepada Masyarakat (LPPM) UNRAM di lokasi desa penempatan KKN Tematik NTB.
+                <p className="text-[11px] text-slate-600 leading-normal">
+                  Dikelola penuh oleh LPPM UNRAM di lokasi desa penempatan KKN Tematik NTB.
                 </p>
               </div>
-              <div className="bg-white/80 rounded-lg p-3 border border-sky-200">
-                <div className="font-bold text-sky-950 mb-1 flex items-center gap-1.5">
-                  <BookOpen className="w-3.5 h-3.5 text-sky-700" />
-                  <span>Beban SKS & KRS</span>
+              <div className="bg-white rounded p-2.5 border border-slate-200">
+                <div className="font-semibold text-slate-900 mb-0.5 flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Beban SKS &amp; KRS</span>
                 </div>
-                <p className="text-[11px] text-sky-800 leading-normal">
-                  Bobot 4 SKS dihitung otomatis dalam beban KRS mahasiswa semester 7 (maksimal 24 SKS), tanpa membebani kuota ruang perkuliahan teknik elektro.
+                <p className="text-[11px] text-slate-600 leading-normal">
+                  Bobot 4 SKS dihitung otomatis dalam beban KRS mahasiswa semester 7 tanpa membebani kuota ruang perkuliahan.
                 </p>
               </div>
-              <div className="bg-white/80 rounded-lg p-3 border border-sky-200">
-                <div className="font-bold text-sky-950 mb-1 flex items-center gap-1.5">
-                  <Users className="w-3.5 h-3.5 text-sky-700" />
+              <div className="bg-white rounded p-2.5 border border-slate-200">
+                <div className="font-semibold text-slate-900 mb-0.5 flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-slate-500" />
                   <span>Dosen Pembimbing Lapangan</span>
                 </div>
-                <p className="text-[11px] text-sky-800 leading-normal">
-                  Bimbingan dilakukan oleh DPL yang ditugaskan oleh LPPM, dengan jadwal supervisi lapangan yang fleksibel di luar jam tatap muka kuliah.
+                <p className="text-[11px] text-slate-600 leading-normal">
+                  Bimbingan dilakukan oleh DPL LPPM dengan supervisi lapangan fleksibel di luar jam tatap muka kuliah.
                 </p>
               </div>
             </div>
@@ -858,31 +858,31 @@ export const PublishedSchedulePage: React.FC<PublishedSchedulePageProps> = ({
 
       {/* 5. Content View */}
       {activeMainTab === 'kuliah' ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <div className="text-sm font-bold text-slate-800">
+            <div className="text-xs font-semibold text-slate-900">
               Daftar Sesi Jadwal Perkuliahan ({currentLectureVersion?.name})
             </div>
-            <span className="px-2.5 py-0.5 text-xs font-semibold rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="px-2 py-0.5 text-[11px] font-medium rounded bg-slate-100 text-slate-700 border border-slate-200 font-mono">
               {filteredLectureAssignments.length} Sesi Terjadwal
             </span>
           </div>
 
           {filteredLectureAssignments.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-500 space-y-2">
-              <Calendar className="w-10 h-10 text-slate-300 mx-auto" />
-              <p className="font-semibold text-slate-700">Tidak ada jadwal kuliah yang sesuai filter</p>
+            <div className="bg-white rounded-md border border-slate-200 p-8 text-center text-slate-500 space-y-2">
+              <Calendar className="w-8 h-8 text-slate-300 mx-auto" />
+              <p className="font-medium text-slate-700 text-sm">Tidak ada jadwal kuliah yang sesuai filter</p>
               <p className="text-xs text-slate-400">Silakan sesuaikan filter semester, KBK, atau pencarian.</p>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="bg-white rounded-md border border-slate-200 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-slate-800 text-white font-bold border-b border-slate-700">
-                      <th className="py-3 px-3.5 text-center w-12">No</th>
-                      <th className="py-3 px-3.5 w-24">Hari</th>
-                      <th className="py-3 px-3.5 w-32">Jam Kuliah</th>
+                    <tr className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 text-[11px] uppercase tracking-wider">
+                      <th className="py-2.5 px-3 text-center w-12">No</th>
+                      <th className="py-2.5 px-3 w-24">Hari</th>
+                      <th className="py-2.5 px-3 w-32">Jam Kuliah</th>
                       <th className="py-3 px-3.5 w-24">Kode MK</th>
                       <th className="py-3 px-3.5">Mata Kuliah</th>
                       <th className="py-3 px-3.5 text-center w-14">SKS</th>
